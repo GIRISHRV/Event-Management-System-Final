@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { Edit2, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Calendar } from "lucide-react";
 import type { Event } from "@/lib/supabase-types";
 
 interface EventListProps {
@@ -9,6 +10,8 @@ interface EventListProps {
   onEdit: (event: Event) => void;
   onDelete: (eventId: string) => void;
   isLoading?: boolean;
+  currentUserId?: string;
+  showActions?: boolean;
 }
 
 export function EventList({
@@ -16,12 +19,15 @@ export function EventList({
   onEdit,
   onDelete,
   isLoading = false,
+  currentUserId,
+  showActions = true,
 }: EventListProps) {
   if (events.length === 0) {
     return (
-      <div className="p-8 text-center border border-gray-200 dark:border-zinc-700 rounded-lg bg-gray-50 dark:bg-zinc-900/50">
-        <p className="text-gray-600 dark:text-zinc-400 text-lg">No events created yet</p>
-        <p className="text-gray-500 dark:text-zinc-500 text-sm mt-2">
+      <div className="p-12 text-center border border-zinc-700/50 rounded-2xl bg-zinc-900/60 backdrop-blur-md shadow-lg">
+        <Calendar size={64} className="mx-auto mb-4 text-zinc-400" />
+        <p className="text-zinc-400 text-xl font-semibold">No events created yet</p>
+        <p className="text-zinc-500 text-sm mt-2">
           Create your first event to get started
         </p>
       </div>
@@ -29,85 +35,55 @@ export function EventList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {events.map((event) => (
-        <div
+        <Link
           key={event.id}
-          className="border border-gray-200 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900/50 overflow-hidden hover:border-green-300 dark:hover:border-green-600 transition"
+          href={`/event/${event.id}`}
+          className="group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
+          style={{ aspectRatio: '3/4' }}
         >
-          <div className="p-6">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  {event.event_name}
-                </h3>
-                {event.event_description && (
-                  <p className="text-gray-600 dark:text-zinc-400 text-sm mb-3 line-clamp-2">
-                    {event.event_description}
-                  </p>
-                )}
+          {/* Background Image */}
+          <div className="absolute inset-0">
+            {event.event_banner_url ? (
+              <Image
+                src={event.event_banner_url}
+                alt={event.event_name}
+                fill
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center">
+                <Calendar size={48} className="text-zinc-600" />
               </div>
-              {event.event_banner_url && (
-                <Image
-                  src={event.event_banner_url}
-                  alt={event.event_name}
-                  width={96}
-                  height={96}
-                  className="w-24 h-24 object-cover rounded-lg ml-4"
-                />
-              )}
-            </div>
+            )}
+          </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 text-sm">
-              <div>
-                <p className="text-gray-500 dark:text-zinc-500">Start Date</p>
-                <p className="text-gray-900 dark:text-white">
-                  {new Date(event.start_date).toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500 dark:text-zinc-500">Start Time</p>
-                <p className="text-gray-900 dark:text-white">{event.start_time}</p>
-              </div>
-              <div>
-                <p className="text-gray-500 dark:text-zinc-500">Timezone</p>
-                <p className="text-gray-900 dark:text-white">{event.timezone || "UTC"}</p>
+          {/* Gradient Overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+
+          {/* Content */}
+          <div className="absolute inset-0 flex flex-col justify-end p-6">
+            {/* Date Badge */}
+            <div className="absolute top-6 right-6">
+              <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center shadow-lg">
+                <div className="text-xs font-bold text-zinc-800 uppercase tracking-wide">
+                  {event.start_date ? new Date(event.start_date).toLocaleDateString('en', { month: 'short' }) : 'TBD'}
+                </div>
+                <div className="text-lg font-bold text-zinc-900 leading-none">
+                  {event.start_date ? new Date(event.start_date).toLocaleDateString('en', { day: 'numeric' }) : '?'}
+                </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4 text-sm">
-              <div>
-                <p className="text-gray-500 dark:text-zinc-500">End Date</p>
-                <p className="text-gray-900 dark:text-white">
-                  {new Date(event.end_date).toLocaleDateString()}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500 dark:text-zinc-500">End Time</p>
-                <p className="text-gray-900 dark:text-white">{event.end_time}</p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-4 border-t border-gray-200 dark:border-zinc-700">
-              <button
-                onClick={() => onEdit(event)}
-                disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-green-700 dark:bg-green-600 hover:bg-green-800 dark:hover:bg-green-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <Edit2 size={18} />
-                Edit
-              </button>
-              <button
-                onClick={() => onDelete(event.id)}
-                disabled={isLoading}
-                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                <Trash2 size={18} />
-                Delete
-              </button>
+            {/* Event Info */}
+            <div className="space-y-3">
+              <h3 className="text-2xl font-bold text-white leading-tight">
+                {event.event_name}
+              </h3>
             </div>
           </div>
-        </div>
+        </Link>
       ))}
     </div>
   );

@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import type { Event } from "@/lib/supabase-types";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import PillNav from "@/components/PillNav";
 
 export default function Home() {
   const router = useRouter();
@@ -30,17 +31,40 @@ export default function Home() {
       try {
         const { data, error } = await supabase
           .from("events")
-          .select("*")
+          .select(`
+            id,
+            user_id,
+            event_name,
+            event_description,
+            start_date,
+            start_time,
+            end_date,
+            end_time,
+            event_banner_url,
+            visibility_type,
+            rsvp_required,
+            created_at,
+            updated_at
+          `)
+          .eq('visibility_type', 'public') // Only fetch public events for homepage
+          .gte('start_date', new Date().toISOString().split('T')[0]) // Only future events
           .order("start_date", { ascending: true })
           .limit(3);
 
         if (error) {
           console.error("Database error:", error);
-          throw error;
+          // Don't throw error - just show empty state
+          setUpcomingEvents([]);
+          return;
         }
-        setUpcomingEvents(data || []);
+        setUpcomingEvents((data || []).map(event => ({
+          ...event,
+          user_email: (event as any).user_email || (event as any).user_id || '',
+          event_status: (event as any).event_status || 'upcoming'
+        }) as Event));
       } catch (err) {
         console.error("Error fetching events:", err);
+        setUpcomingEvents([]); // Set empty array on error
       }
     };
 
@@ -50,8 +74,8 @@ export default function Home() {
   // Show loading while checking session
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center">
-        <p className="text-gray-800 dark:text-white">Loading...</p>
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
+        <p className="text-white">Loading...</p>
       </div>
     );
   }
@@ -60,52 +84,30 @@ export default function Home() {
     await signOut();
   };
 
+  const navItems = session 
+    ? [
+        { label: 'Home', href: '/' },
+        { label: 'Dashboard', href: userProfile?.role === 'customer' ? '/customer-dashboard' : '/vendor-dashboard' }
+      ]
+    : [
+        { label: 'Home', href: '/' },
+        { label: 'Sign In', href: '/signin' },
+        { label: 'Sign Up', href: '/signup' }
+      ];
+
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
+    <div className="min-h-screen bg-zinc-950">
       {/* Navigation */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-        <button
-          onClick={() => router.push("/")}
-          className="text-2xl font-bold text-green-700 dark:text-green-500 hover:text-green-800 dark:hover:text-green-400 transition"
-        >
-          EMS (WIP)
-        </button>
-        <div className="flex gap-4 items-center">
-          {session ? (
-            <>
-              <div className="text-gray-700 dark:text-gray-300 text-sm flex items-center">
-                Welcome, <span className="font-medium ml-1">{session.user.email}</span>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition flex items-center gap-2"
-              >
-                <LogOut size={16} />
-                Sign Out
-              </button>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/signin"
-                className="px-6 py-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition font-medium"
-              >
-                FIND EVENTS
-              </Link>
-              <Link
-                href="/signup"
-                className="px-6 py-2 bg-green-700 dark:bg-green-600 text-white rounded-lg font-medium hover:bg-green-800 dark:hover:bg-green-700 transition"
-              >
-                LOGIN
-              </Link>
-            </>
-          )}
-          <ThemeToggle />
-        </div>
-      </nav>
+      <PillNav
+        items={navItems}
+        activeHref="/"
+        userEmail={session?.user?.email}
+        onSignOut={handleSignOut}
+        showAuth={!!session}
+      />
 
       {/* Hero Section */}
-      <div className="relative bg-linear-to-r from-green-800 to-green-700 dark:from-green-900 dark:to-green-800 overflow-hidden">
+      <div className="relative bg-linear-to-r from-green-800 to-green-700 dark:from-green-900 dark:to-green-800 overflow-hidden mt-20">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="text-center">
             <h1 className="text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight">
@@ -158,50 +160,68 @@ export default function Home() {
 
         {/* Events Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {upcomingEvents.map((event) => (
-            <div
-              key={event.id}
-              className="bg-white dark:bg-zinc-800 rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition border border-gray-200 dark:border-zinc-700"
-            >
-              {/* Event Image */}
-              <div className="relative h-48 overflow-hidden bg-gray-200 dark:bg-zinc-700">
-                {event.event_banner_url ? (
-                  <Image
-                    src={event.event_banner_url}
-                    alt={event.event_name}
-                    width={400}
-                    height={300}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-gray-300 dark:bg-zinc-600 text-gray-600 dark:text-gray-400">
-                    No Image
-                  </div>
-                )}
-              </div>
-
-              {/* Event Details */}
-              <div className="p-6">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">{event.event_name}</h3>
-
-                <div className="space-y-2 mb-6">
-                  {event.event_description && (
-                    <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
-                      <p>{event.event_description.substring(0, 100)}...</p>
+          {upcomingEvents.length > 0 ? (
+            upcomingEvents.map((event) => (
+              <Link
+                key={event.id}
+                href={`/event/${event.id}`}
+                className="group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
+                style={{ aspectRatio: '3/4' }}
+              >
+                {/* Background Image */}
+                <div className="absolute inset-0">
+                  {event.event_banner_url ? (
+                    <Image
+                      src={event.event_banner_url}
+                      alt={event.event_name}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center">
+                      <Calendar size={48} className="text-zinc-600" />
                     </div>
                   )}
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <Calendar size={16} className="text-green-700 dark:text-green-500" />
-                    <span>{new Date(event.start_date).toLocaleDateString()}</span>
-                  </div>
                 </div>
 
-                <button className="w-full py-2 bg-green-700 dark:bg-green-600 text-white rounded-lg font-semibold hover:bg-green-800 dark:hover:bg-green-700 transition">
-                  VIEW EVENT →
-                </button>
-              </div>
+                {/* Gradient Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+
+                {/* Content */}
+                <div className="absolute inset-0 flex flex-col justify-end p-6">
+                  {/* Date Badge */}
+                  <div className="absolute top-6 right-6">
+                    <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center shadow-lg">
+                      <div className="text-xs font-bold text-zinc-800 uppercase tracking-wide">
+                        {event.start_date ? new Date(event.start_date).toLocaleDateString('en', { month: 'short' }) : 'TBD'}
+                      </div>
+                      <div className="text-lg font-bold text-zinc-900 leading-none">
+                        {event.start_date ? new Date(event.start_date).toLocaleDateString('en', { day: 'numeric' }) : '?'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Event Info */}
+                  <div className="space-y-3">
+                    <h3 className="text-2xl font-bold text-white leading-tight">
+                      {event.event_name}
+                    </h3>
+                  </div>
+                </div>
+              </Link>
+            ))
+          ) : (
+            <div className="col-span-1 md:col-span-3 text-center py-12">
+              <Calendar size={64} className="mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+              <h3 className="text-xl font-semibold text-gray-600 dark:text-gray-400 mb-2">No Public Events Yet</h3>
+              <p className="text-gray-500 dark:text-gray-500">
+                {session 
+                  ? "Check back soon for upcoming events, or create your own!"
+                  : "Sign in to discover more events and create your own!"
+                }
+              </p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 

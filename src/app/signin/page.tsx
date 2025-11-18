@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import PillNav from "@/components/PillNav";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -36,24 +37,47 @@ export default function SignInPage() {
         // Fetch user role to determine which dashboard to redirect to
         const { data: profile, error: profileError } = await supabase
           .from("profiles")
-          .select("role")
+          .select("role, email")
           .eq("id", data.session.user.id)
           .single();
 
         if (profileError) {
           console.error("Error fetching profile:", profileError);
-          setError("Could not determine user role");
-          return;
+          
+          // If profile doesn't exist, create it with default role
+          if (profileError.code === 'PGRST116') {
+            console.log("Profile not found, creating default profile...");
+            const { error: createError } = await supabase
+              .from("profiles")
+              .insert({
+                id: data.session.user.id,
+                email: data.session.user.email || email,
+                role: 'customer',
+                created_at: new Date().toISOString(),
+              });
+
+            if (createError) {
+              console.error("Error creating profile:", createError);
+              setError("Could not create user profile");
+              return;
+            }
+            
+            // Default to customer dashboard for new profiles
+            router.push("/customer-dashboard");
+            return;
+          } else {
+            setError("Could not determine user role");
+            return;
+          }
         }
 
         // Redirect based on role - auth context will handle the session update
         const role = profile?.role;
         if (role === "vendor") {
           router.push("/vendor-dashboard");
-        } else if (role === "customer") {
-          router.push("/customer-dashboard");
         } else {
-          router.push("/dashboard");
+          // Default to customer dashboard for any non-vendor users
+          router.push("/customer-dashboard");
         }
       }
     } catch (err) {
@@ -64,9 +88,20 @@ export default function SignInPage() {
     }
   };
 
+  const navItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Sign In', href: '/signin' },
+    { label: 'Sign Up', href: '/signup' }
+  ];
+
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
-      {/* Top Bar */}
+    <div className="min-h-screen bg-zinc-950">
+      {/* Navigation */}
+      <PillNav
+        items={navItems}
+        activeHref="/signin"
+        showAuth={false}
+      />
       <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
         <Link href="/" className="text-2xl font-bold text-green-700 dark:text-green-500 hover:text-green-800 dark:hover:text-green-400 transition">
           EMS (WIP)
@@ -79,8 +114,8 @@ export default function SignInPage() {
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Welcome Back</h1>
-            <p className="text-gray-600 dark:text-gray-400">Sign in to your account</p>
+            <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+            <p className="text-gray-400">Sign in to your account</p>
           </div>
 
           {/* Form */}
@@ -94,13 +129,13 @@ export default function SignInPage() {
 
             {/* Email */}
             <div>
-              <label className="block text-gray-900 dark:text-white font-medium mb-2">Email</label>
+              <label className="block text-white font-medium mb-2">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full px-4 py-2 bg-gray-100 dark:bg-zinc-800 border border-gray-300 dark:border-zinc-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-zinc-500 focus:outline-none focus:border-green-700 dark:focus:border-green-500 transition"
+                className="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 transition"
                 required
               />
             </div>

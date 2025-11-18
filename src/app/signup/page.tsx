@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import PillNav from "@/components/PillNav";
 
 type Role = "customer" | "vendor";
 
@@ -19,6 +20,12 @@ export default function SignUpPage() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const navItems = [
+    { label: 'Home', href: '/' },
+    { label: 'Sign In', href: '/signin' },
+    { label: 'Sign Up', href: '/signup' }
+  ];
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,10 +45,17 @@ export default function SignUpPage() {
     setLoading(true);
 
     try {
-      // Sign up user
+      // Sign up user with metadata
       const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            username: email.split('@')[0], // Use email prefix as username
+            full_name: email.split('@')[0], // Use email prefix as full name for now
+            role: role
+          }
+        }
       });
 
       if (signUpError) {
@@ -50,24 +64,25 @@ export default function SignUpPage() {
       }
 
       if (data?.user) {
-        // Store user role in profiles table
+        // Update the profile with the role (trigger should have created the basic profile)
         const { error: profileError } = await supabase
           .from("profiles")
-          .insert([
-            {
-              id: data.user.id,
-              email: email,
-              role: role,
-              created_at: new Date().toISOString(),
-            },
-          ]);
+          .upsert({
+            id: data.user.id,
+            email: email,
+            username: email.split('@')[0],
+            full_name: email.split('@')[0],
+            role: role,
+            updated_at: new Date().toISOString(),
+          });
 
         if (profileError) {
-          console.error("Profile creation error:", profileError);
+          console.error("Profile update error:", profileError);
+          // Don't fail the signup process for profile issues
         }
 
         // Don't login - just redirect to sign in page
-        alert("Account created! Please sign in with your credentials.");
+        alert("Account created! Please check your email for verification, then sign in with your credentials.");
         router.push("/signin");
       }
     } catch (err) {
@@ -79,30 +94,29 @@ export default function SignUpPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-zinc-950">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-        <Link href="/" className="text-2xl font-bold text-green-700 dark:text-green-500 hover:text-green-800 dark:hover:text-green-400 transition">
-          EMS (WIP)
-        </Link>
-        <ThemeToggle />
-      </div>
+    <div className="min-h-screen bg-zinc-950">
+      {/* Navigation */}
+      <PillNav
+        items={navItems}
+        activeHref="/signup"
+        showAuth={false}
+      />
 
       {/* Form Container */}
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4 py-8">
+      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4 py-8 pt-24">
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Create Account</h1>
-            <p className="text-gray-600 dark:text-gray-400">Join EMS (WIP) today</p>
+            <h1 className="text-3xl font-bold text-white mb-2">Create Account</h1>
+            <p className="text-gray-400">Join EMS (WIP) today</p>
           </div>
 
           {/* Form */}
           <form onSubmit={handleSignUp} className="space-y-4">
             {/* Error Message */}
             {error && (
-              <div className="p-4 bg-red-500/10 dark:bg-red-900/20 border border-red-500/50 dark:border-red-500/30 rounded-lg">
-                <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+              <div className="p-4 bg-red-900/20 border border-red-500/30 rounded-lg">
+                <p className="text-red-400 text-sm">{error}</p>
               </div>
             )}
 
