@@ -83,7 +83,12 @@ export function OpenMapLocationPicker({
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'EventManagementSystem/1.0 (https://github.com)'
+          }
+        }
       );
       const data = await response.json();
       
@@ -119,7 +124,12 @@ export function OpenMapLocationPicker({
     setIsSearching(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&addressdetails=1`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'EventManagementSystem/1.0 (https://github.com)'
+          }
+        }
       );
       const data = await response.json();
       setSearchResults(data);

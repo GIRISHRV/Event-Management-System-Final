@@ -1,9 +1,9 @@
 import { useState, useRef } from "react";
 import Image from "next/image";
 import dynamic from "next/dynamic";
-import { X, Upload, Plus, MapPin, Settings, Clock, FileText, HelpCircle, Star, Trash2 } from "lucide-react";
+import { X, Upload, Plus, MapPin, Clock, FileText, HelpCircle, Trash2, ImageIcon } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { Event, CreateEventInput, EventScheduleData, EventPerformerData, EventVendorData, EventFAQData } from "@/lib/supabase-types";
+import type { Event, CreateEventInput, EventScheduleData, EventPerformerData, EventFAQData } from "@/lib/supabase-types";
 
 // Dynamically import the map component to avoid SSR issues
 const OpenMapLocationPicker = dynamic(
@@ -26,7 +26,7 @@ interface EnhancedEventFormProps {
   userEmail?: string;
 }
 
-type FormTab = 'basic' | 'venue' | 'schedule' | 'lineup' | 'policies' | 'faqs';
+type FormTab = 'basic' | 'venue' | 'schedule-lineup' | 'gallery' | 'faqs';
 
 export function EnhancedEventForm({
   event,
@@ -36,8 +36,14 @@ export function EnhancedEventForm({
   userEmail,
 }: EnhancedEventFormProps) {
   const [currentTab, setCurrentTab] = useState<FormTab>('basic');
+  const currentTabRef = useRef<FormTab>('basic');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const performerImageInputRef = useRef<HTMLInputElement>(null);
+  const galleryImageInputRef = useRef<HTMLInputElement>(null);
+  const galleryVideoInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadingPerformerIndex, setUploadingPerformerIndex] = useState<number | null>(null);
+  const [uploadingGalleryType, setUploadingGalleryType] = useState<'image' | 'video' | null>(null);
 
   // Basic Information State
   const [eventName, setEventName] = useState(event?.event_name || "");
@@ -46,21 +52,18 @@ export function EnhancedEventForm({
   const [startTime, setStartTime] = useState(event?.start_time || "");
   const [endDate, setEndDate] = useState(event?.end_date || "");
   const [endTime, setEndTime] = useState(event?.end_time || "");
-  const [timezone, setTimezone] = useState(event?.timezone || "UTC");
+  const [timezone] = useState(event?.timezone || "UTC");
   const [eventBannerUrl, setEventBannerUrl] = useState(event?.event_banner_url || "");
   const [visibilityType, setVisibilityType] = useState<'public' | 'private' | 'whitelist'>(event?.visibility_type || 'public');
   const [maxAttendees, setMaxAttendees] = useState(event?.max_attendees?.toString() || "");
-  const [rsvpRequired, setRsvpRequired] = useState(event?.rsvp_required || false);
-  const [rsvpDeadline, setRsvpDeadline] = useState(event?.rsvp_deadline || "");
   const [organizerName, setOrganizerName] = useState(event?.organizer_name || "");
   const [organizerContact, setOrganizerContact] = useState(event?.organizer_contact || "");
   const [eventStatus, setEventStatus] = useState<'upcoming' | 'ongoing' | 'completed' | 'cancelled'>(event?.event_status || 'upcoming');
 
   // Description Enhancements State
-  const [eventHighlights, setEventHighlights] = useState<string[]>(event?.event_highlights || []);
-  const [keyAttractions, setKeyAttractions] = useState<string[]>(event?.key_attractions || []);
-  const [ageRestrictions, setAgeRestrictions] = useState(event?.age_restrictions || "");
-  const [tags, setTags] = useState<string[]>(event?.tags || []);
+  // const [eventHighlights, setEventHighlights] = useState<string[]>(event?.event_highlights || []);
+  // const [keyAttractions, setKeyAttractions] = useState<string[]>(event?.key_attractions || []);
+  // const [tags, setTags] = useState<string[]>(event?.tags || []);
 
   // Venue State
   const [venueName, setVenueName] = useState(event?.venue_name || "");
@@ -72,26 +75,6 @@ export function EnhancedEventForm({
   const [longitude, setLongitude] = useState(event?.longitude || null);
   const [googleMapsUrl, setGoogleMapsUrl] = useState(event?.google_maps_url || "");
 
-  // Facilities State
-  const [parkingAvailable, setParkingAvailable] = useState(event?.parking_available || false);
-  const [foodStalls, setFoodStalls] = useState(event?.food_stalls || false);
-  const [alcoholAvailable, setAlcoholAvailable] = useState(event?.alcohol_available || false);
-  const [wheelchairAccess, setWheelchairAccess] = useState(event?.wheelchair_access || false);
-  const [kidsAllowed, setKidsAllowed] = useState(event?.kids_allowed ?? true);
-  const [petsAllowed, setPetsAllowed] = useState(event?.pets_allowed || false);
-  const [prohibitedItems, setProhibitedItems] = useState<string[]>(event?.prohibited_items || []);
-
-  // Policies State
-  const [safetyGuidelines, setSafetyGuidelines] = useState(
-    Array.isArray(event?.safety_guidelines) 
-      ? event.safety_guidelines.join('\n') 
-      : (event?.safety_guidelines || "")
-  );
-  const [entryGuidelines, setEntryGuidelines] = useState(event?.entry_guidelines || "");
-  const [securityMeasures, setSecurityMeasures] = useState(event?.security_measures || "");
-  const [medicalAssistanceInfo, setMedicalAssistanceInfo] = useState(event?.medical_assistance_info || "");
-  const [weatherAdvisory, setWeatherAdvisory] = useState(event?.weather_advisory || "");
-
   // Gallery State
   const [galleryImages, setGalleryImages] = useState<string[]>(event?.gallery_images || []);
   const [galleryVideos, setGalleryVideos] = useState<string[]>(event?.gallery_videos || []);
@@ -102,22 +85,19 @@ export function EnhancedEventForm({
   // Performers State
   const [performers, setPerformers] = useState<EventPerformerData[]>(event?.performers || []);
 
-  // Vendors State
-  const [vendors, setVendors] = useState<EventVendorData[]>(event?.vendors || []);
-
   // FAQs State
   const [faqs, setFaqs] = useState<EventFAQData[]>(event?.faqs || []);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  // Generic upload handler
+  const handleFileUpload = async (file: File, bucket: string = 'event-banners'): Promise<string | null> => {
+    if (!file) return null;
 
     try {
       setIsUploading(true);
       const fileName = `${Date.now()}_${file.name}`;
       
       const { data, error } = await supabase.storage
-        .from('event-banners')
+        .from(bucket)
         .upload(fileName, file);
 
       if (error) {
@@ -126,14 +106,25 @@ export function EnhancedEventForm({
       }
 
       const { data: publicData } = supabase.storage
-        .from('event-banners')
+        .from(bucket)
         .getPublicUrl(data.path);
 
-      setEventBannerUrl(publicData.publicUrl);
+      return publicData.publicUrl;
     } catch (error) {
-      console.error('Error uploading image:', error);
+      console.error('Error uploading file:', error);
+      return null;
     } finally {
       setIsUploading(false);
+    }
+  };
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const url = await handleFileUpload(file, 'event-banners');
+    if (url) {
+      setEventBannerUrl(url);
     }
   };
 
@@ -158,16 +149,6 @@ export function EnhancedEventForm({
     setGoogleMapsUrl(mapsUrl);
   };
 
-  const addArrayItem = (array: string[], setArray: React.Dispatch<React.SetStateAction<string[]>>, item: string) => {
-    if (item.trim()) {
-      setArray([...array, item.trim()]);
-    }
-  };
-
-  const removeArrayItem = (array: string[], setArray: React.Dispatch<React.SetStateAction<string[]>>, index: number) => {
-    setArray(array.filter((_, i) => i !== index));
-  };
-
   const addScheduleItem = () => {
     setSchedules([...schedules, {
       day_number: 1,
@@ -189,24 +170,53 @@ export function EnhancedEventForm({
     }]);
   };
 
-  const addVendor = () => {
-    setVendors([...vendors, {
-      vendor_name: "",
-      vendor_description: "",
-      food_category: "",
-      menu_preview: [],
-      vendor_contact: "",
-      stall_location: "",
-      image_url: "",
-    }]);
-  };
-
   const addFAQ = () => {
     setFaqs([...faqs, {
       question: "",
       answer: "",
       display_order: faqs.length,
     }]);
+  };
+
+  // Handler for performer image upload
+  const handlePerformerImageUpload = async (event: React.ChangeEvent<HTMLInputElement>, performerIndex: number) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingPerformerIndex(performerIndex);
+    const url = await handleFileUpload(file, 'event-banners');
+    if (url) {
+      const updatedPerformers = [...performers];
+      updatedPerformers[performerIndex].image_url = url;
+      setPerformers(updatedPerformers);
+    }
+    setUploadingPerformerIndex(null);
+  };
+
+  // Handler for gallery image upload
+  const handleGalleryImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingGalleryType('image');
+    const url = await handleFileUpload(file, 'event-banners');
+    if (url) {
+      setGalleryImages([...galleryImages, url]);
+    }
+    setUploadingGalleryType(null);
+  };
+
+  // Handler for gallery video upload
+  const handleGalleryVideoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingGalleryType('video');
+    const url = await handleFileUpload(file, 'event-banners');
+    if (url) {
+      setGalleryVideos([...galleryVideos, url]);
+    }
+    setUploadingGalleryType(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -236,9 +246,6 @@ export function EnhancedEventForm({
         visibility_type: visibilityType,
         event_status: eventStatus,
         max_attendees: maxAttendees ? parseInt(maxAttendees) : undefined,
-        rsvp_required: rsvpRequired,
-        rsvp_deadline: rsvpDeadline || undefined,
-        age_restrictions: ageRestrictions || undefined,
         
         // Venue and location information
         venue_name: venueName || undefined,
@@ -255,21 +262,13 @@ export function EnhancedEventForm({
         organizer_contact: organizerContact || undefined,
         organizer_email: userEmail || undefined, // Use user email as organizer email by default
         
-        // Facility boolean flags
-        parking_available: parkingAvailable,
-        food_stalls: foodStalls,
-        alcohol_available: alcoholAvailable,
-        wheelchair_access: wheelchairAccess,
-        kids_allowed: kidsAllowed,
-        pets_allowed: petsAllowed,
-        
         // JSON data arrays (only include if not empty)
         schedules: schedules.length > 0 ? schedules : [],
         performers: performers.length > 0 ? performers : [],
-        vendors: vendors.length > 0 ? vendors : [],
+        gallery_images: galleryImages.length > 0 ? galleryImages : [],
+        gallery_videos: galleryVideos.length > 0 ? galleryVideos : [],
         faqs: faqs.length > 0 ? faqs : [],
-        safety_guidelines: safetyGuidelines ? safetyGuidelines.split('\n').filter(line => line.trim()) : [],
-        tags: tags.length > 0 ? tags : [],
+        tags: [],
       };
 
       // Remove undefined values to avoid database errors
@@ -281,6 +280,15 @@ export function EnhancedEventForm({
 
       await onSubmit(eventData);
     } catch (error) {
+      console.error('Error submitting form - Full error:', error);
+      if (error && typeof error === 'object') {
+        console.error('Error keys:', Object.keys(error as Record<string, unknown>));
+        const errorObj = error as Record<string, unknown>;
+        console.error('Error code:', errorObj.code);
+        console.error('Error message:', errorObj.message);
+        console.error('Error details:', errorObj.details);
+      }
+      
       const errorMessage = error && typeof error === 'object' && 'message' in error 
         ? (error as { message: string }).message 
         : 'Unknown error occurred';
@@ -305,25 +313,26 @@ export function EnhancedEventForm({
   const tabs = [
     { id: 'basic' as FormTab, label: 'Basic Info', icon: FileText },
     { id: 'venue' as FormTab, label: 'Venue & Location', icon: MapPin },
-    { id: 'schedule' as FormTab, label: 'Schedule', icon: Clock },
-    { id: 'lineup' as FormTab, label: 'Performers', icon: Star },
-    { id: 'policies' as FormTab, label: 'Policies', icon: Settings },
+    { id: 'schedule-lineup' as FormTab, label: 'Schedule & Performers', icon: Clock },
+    { id: 'gallery' as FormTab, label: 'Gallery', icon: ImageIcon },
     { id: 'faqs' as FormTab, label: 'FAQs', icon: HelpCircle },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">
-          {event ? "Edit Event" : "Create New Event"}
-        </h2>
-        <button
-          onClick={onClose}
-          className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
-        >
-          <X size={20} className="text-gray-400" />
-        </button>
-      </div>
+      {!event && (
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-white">
+            Create New Event
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
+          >
+            <X size={20} className="text-gray-400" />
+          </button>
+        </div>
+      )}
 
       {/* Tab Navigation */}
       <div className="border-b border-zinc-700">
@@ -333,7 +342,10 @@ export function EnhancedEventForm({
             return (
               <button
                 key={tab.id}
-                onClick={() => setCurrentTab(tab.id)}
+                onClick={() => {
+                  setCurrentTab(tab.id);
+                  currentTabRef.current = tab.id;
+                }}
                 className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                   currentTab === tab.id
                     ? 'border-green-500 text-green-400'
@@ -372,9 +384,9 @@ export function EnhancedEventForm({
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 Event Banner
               </label>
-              <div className="flex items-center space-x-4">
+              <div className="space-y-3">
                 {eventBannerUrl && (
-                  <div className="relative w-32 h-20">
+                  <div className="relative w-full h-40">
                     <Image
                       src={eventBannerUrl}
                       alt="Event banner"
@@ -383,28 +395,37 @@ export function EnhancedEventForm({
                     />
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-lg transition-colors"
-                >
-                  {isUploading ? (
-                    <>Loading...</>
-                  ) : (
-                    <>
-                      <Upload size={16} />
-                      Upload Banner
-                    </>
-                  )}
-                </button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImageUpload}
-                  accept="image/*"
-                  className="hidden"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    placeholder="Or paste banner URL here"
+                    value={eventBannerUrl}
+                    onChange={(e) => setEventBannerUrl(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors shrink-0"
+                  >
+                    {isUploading ? (
+                      <>Loading...</>
+                    ) : (
+                      <>
+                        <Upload size={16} />
+                        Upload
+                      </>
+                    )}
+                  </button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                </div>
               </div>
             </div>
 
@@ -546,29 +567,6 @@ export function EnhancedEventForm({
                 </select>
               </div>
             </div>
-
-            {/* RSVP Settings */}
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={rsvpRequired}
-                  onChange={(e) => setRsvpRequired(e.target.checked)}
-                  className="w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
-                />
-                <span className="ml-2 text-sm text-gray-300">RSVP Required</span>
-              </label>
-              {rsvpRequired && (
-                <div className="flex-1">
-                  <input
-                    type="datetime-local"
-                    value={rsvpDeadline}
-                    onChange={(e) => setRsvpDeadline(e.target.value)}
-                    className="px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                  />
-                </div>
-              )}
-            </div>
           </div>
         )}
 
@@ -594,305 +592,311 @@ export function EnhancedEventForm({
                 <option value="hybrid">Hybrid (Indoor & Outdoor)</option>
               </select>
             </div>
-
-            {/* Facilities */}
-            <div>
-              <h3 className="text-lg font-medium text-white mb-4">Facilities & Amenities</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={parkingAvailable}
-                    onChange={(e) => setParkingAvailable(e.target.checked)}
-                    className="w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-300">Parking Available</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={foodStalls}
-                    onChange={(e) => setFoodStalls(e.target.checked)}
-                    className="w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-300">Food Stalls</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={alcoholAvailable}
-                    onChange={(e) => setAlcoholAvailable(e.target.checked)}
-                    className="w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-300">Alcohol Available</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={wheelchairAccess}
-                    onChange={(e) => setWheelchairAccess(e.target.checked)}
-                    className="w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-300">Wheelchair Access</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={kidsAllowed}
-                    onChange={(e) => setKidsAllowed(e.target.checked)}
-                    className="w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-300">Kids Allowed</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={petsAllowed}
-                    onChange={(e) => setPetsAllowed(e.target.checked)}
-                    className="w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
-                  />
-                  <span className="ml-2 text-sm text-gray-300">Pets Allowed</span>
-                </label>
-              </div>
-            </div>
           </div>
         )}
 
-        {/* Performers/Lineup Tab */}
-        {currentTab === 'lineup' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-white">Performers & Artists</h3>
-              <button
-                type="button"
-                onClick={addPerformer}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                <Plus size={16} />
-                Add Performer
-              </button>
-            </div>
-            {performers.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                No performers added yet. Click &quot;Add Performer&quot; to get started.
+        {/* Schedule & Performers Tab */}
+        {currentTab === 'schedule-lineup' && (
+          <div className="space-y-8">
+            {/* Performers Section */}
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-white">Performers & Artists</h3>
+                <button
+                  type="button"
+                  onClick={addPerformer}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                  <Plus size={16} />
+                  Add Performer
+                </button>
               </div>
-            ) : (
-              <div className="space-y-4">
-                {performers.map((performer, index) => (
-                  <div key={index} className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-white font-medium">Performer {index + 1}</h4>
-                      <button
-                        type="button"
-                        onClick={() => setPerformers(performers.filter((_, i) => i !== index))}
-                        className="text-red-400 hover:text-red-300 p-1"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Performer Name
-                        </label>
-                        <input
-                          type="text"
-                          value={performer.name}
-                          onChange={(e) => {
-                            const newPerformers = [...performers];
-                            newPerformers[index].name = e.target.value;
-                            setPerformers(newPerformers);
-                          }}
-                          placeholder="Artist or band name"
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Performer Type
-                        </label>
-                        <select
-                          value={performer.performer_type}
-                          onChange={(e) => {
-                            const newPerformers = [...performers];
-                            newPerformers[index].performer_type = e.target.value as 'artist' | 'speaker' | 'chef' | 'performer' | 'other';
-                            setPerformers(newPerformers);
-                          }}
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+              {performers.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  No performers added yet. Click &quot;Add Performer&quot; to get started.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {performers.map((performer, index) => (
+                    <div key={index} className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-white font-medium">Performer {index + 1}</h4>
+                        <button
+                          type="button"
+                          onClick={() => setPerformers(performers.filter((_, i) => i !== index))}
+                          className="text-red-400 hover:text-red-300 p-1"
                         >
-                          <option value="artist">Artist</option>
-                          <option value="performer">Performer</option>
-                          <option value="speaker">Speaker</option>
-                          <option value="chef">Chef</option>
-                          <option value="other">Other</option>
-                        </select>
+                          <Trash2 size={16} />
+                        </button>
                       </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Bio/Description
-                        </label>
-                        <textarea
-                          value={performer.bio || ''}
-                          onChange={(e) => {
-                            const newPerformers = [...performers];
-                            newPerformers[index].bio = e.target.value;
-                            setPerformers(newPerformers);
-                          }}
-                          placeholder="Brief biography or description of the performer..."
-                          rows={3}
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Image URL
-                        </label>
-                        <input
-                          type="url"
-                          value={performer.image_url || ''}
-                          onChange={(e) => {
-                            const newPerformers = [...performers];
-                            newPerformers[index].image_url = e.target.value;
-                            setPerformers(newPerformers);
-                          }}
-                          placeholder="https://example.com/performer-photo.jpg"
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Social Links (JSON format)
-                        </label>
-                        <input
-                          type="text"
-                          value={performer.social_links ? JSON.stringify(performer.social_links) : '{}'}
-                          onChange={(e) => {
-                            const newPerformers = [...performers];
-                            try {
-                              newPerformers[index].social_links = JSON.parse(e.target.value);
-                            } catch {
-                              // Invalid JSON, keep previous value
-                            }
-                            setPerformers(newPerformers);
-                          }}
-                          placeholder='{"instagram": "username", "twitter": "username"}'
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-                        />
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Performer Name
+                          </label>
+                          <input
+                            type="text"
+                            value={performer.name}
+                            onChange={(e) => {
+                              const newPerformers = [...performers];
+                              newPerformers[index].name = e.target.value;
+                              setPerformers(newPerformers);
+                            }}
+                            placeholder="Artist or band name"
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Performer Type
+                          </label>
+                          <select
+                            value={performer.performer_type}
+                            onChange={(e) => {
+                              const newPerformers = [...performers];
+                              newPerformers[index].performer_type = e.target.value as 'artist' | 'speaker' | 'chef' | 'performer' | 'other';
+                              setPerformers(newPerformers);
+                            }}
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+                          >
+                            <option value="artist">Artist</option>
+                            <option value="performer">Performer</option>
+                            <option value="speaker">Speaker</option>
+                            <option value="chef">Chef</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Bio/Description
+                          </label>
+                          <textarea
+                            value={performer.bio || ''}
+                            onChange={(e) => {
+                              const newPerformers = [...performers];
+                              newPerformers[index].bio = e.target.value;
+                              setPerformers(newPerformers);
+                            }}
+                            placeholder="Brief biography or description of the performer..."
+                            rows={3}
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Image
+                          </label>
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="url"
+                                value={performer.image_url || ''}
+                                onChange={(e) => {
+                                  const newPerformers = [...performers];
+                                  newPerformers[index].image_url = e.target.value;
+                                  setPerformers(newPerformers);
+                                }}
+                                placeholder="https://example.com/performer-photo.jpg"
+                                className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => performerImageInputRef.current?.click()}
+                                disabled={uploadingPerformerIndex === index}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
+                              >
+                                <Upload size={16} />
+                                Upload
+                              </button>
+                              <input
+                                ref={performerImageInputRef}
+                                type="file"
+                                onChange={(e) => handlePerformerImageUpload(e, index)}
+                                accept="image/*"
+                                className="hidden"
+                              />
+                            </div>
+                            {performer.image_url && (
+                              <div className="relative w-24 h-24">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={performer.image_url}
+                                  alt={performer.name}
+                                  className="w-full h-full object-cover rounded-lg"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="96" height="96"%3E%3Crect fill="%23333" width="96" height="96"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999" font-size="12"%3EError%3C/text%3E%3C/svg%3E';
+                                  }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="border-t border-zinc-700 pt-8">
+              {/* Event Schedule Section */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-white">Event Schedule</h3>
+                <button
+                  type="button"
+                  onClick={addScheduleItem}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                >
+                  <Plus size={16} />
+                  Add Schedule Item
+                </button>
               </div>
-            )}
+              {schedules.length === 0 ? (
+                <div className="text-center py-8 text-gray-400">
+                  No schedule items added yet. Click &quot;Add Schedule Item&quot; to get started.
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {schedules.map((schedule, index) => (
+                    <div key={index} className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-white font-medium">Schedule Item {index + 1}</h4>
+                        <button
+                          type="button"
+                          onClick={() => setSchedules(schedules.filter((_, i) => i !== index))}
+                          className="text-red-400 hover:text-red-300 p-1"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Day Number
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            value={schedule.day_number}
+                            onChange={(e) => {
+                              const newSchedules = [...schedules];
+                              newSchedules[index].day_number = parseInt(e.target.value);
+                              setSchedules(newSchedules);
+                            }}
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Location
+                          </label>
+                          <input
+                            type="text"
+                            value={schedule.location}
+                            onChange={(e) => {
+                              const newSchedules = [...schedules];
+                              newSchedules[index].location = e.target.value;
+                              setSchedules(newSchedules);
+                            }}
+                            placeholder="e.g., Main Stage, Conference Room A"
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Start Time
+                          </label>
+                          <input
+                            type="time"
+                            value={schedule.start_time}
+                            onChange={(e) => {
+                              const newSchedules = [...schedules];
+                              newSchedules[index].start_time = e.target.value;
+                              setSchedules(newSchedules);
+                            }}
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            End Time
+                          </label>
+                          <input
+                            type="time"
+                            value={schedule.end_time}
+                            onChange={(e) => {
+                              const newSchedules = [...schedules];
+                              newSchedules[index].end_time = e.target.value;
+                              setSchedules(newSchedules);
+                            }}
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Title
+                          </label>
+                          <input
+                            type="text"
+                            value={schedule.title}
+                            onChange={(e) => {
+                              const newSchedules = [...schedules];
+                              newSchedules[index].title = e.target.value;
+                              setSchedules(newSchedules);
+                            }}
+                            placeholder="e.g., Opening Ceremony, Keynote Speech"
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-sm font-medium text-gray-300 mb-2">
+                            Description
+                          </label>
+                          <textarea
+                            value={schedule.description || ''}
+                            onChange={(e) => {
+                              const newSchedules = [...schedules];
+                              newSchedules[index].description = e.target.value;
+                              setSchedules(newSchedules);
+                            }}
+                            placeholder="Detailed description of this schedule item..."
+                            rows={3}
+                            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Policies Tab */}
-        {currentTab === 'policies' && (
+        {/* Gallery Tab */}
+        {currentTab === 'gallery' && (
           <div className="space-y-6">
-            <h3 className="text-lg font-medium text-white">Event Policies & Guidelines</h3>
+            <h3 className="text-lg font-medium text-white">Event Gallery</h3>
             
-            {/* Safety Guidelines */}
+            {/* Gallery Images */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Safety Guidelines
-              </label>
-              <textarea
-                value={safetyGuidelines}
-                onChange={(e) => setSafetyGuidelines(e.target.value)}
-                placeholder="Describe safety measures, emergency procedures, and safety requirements..."
-                rows={4}
-                className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-              />
-            </div>
-
-            {/* Entry Guidelines */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Entry Guidelines
-              </label>
-              <textarea
-                value={entryGuidelines}
-                onChange={(e) => setEntryGuidelines(e.target.value)}
-                placeholder="Describe entry requirements, dress code, ID requirements, etc..."
-                rows={4}
-                className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-              />
-            </div>
-
-            {/* Security Measures */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Security Measures
-              </label>
-              <textarea
-                value={securityMeasures}
-                onChange={(e) => setSecurityMeasures(e.target.value)}
-                placeholder="Describe security protocols, bag checks, metal detectors, etc..."
-                rows={4}
-                className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-              />
-            </div>
-
-            {/* Medical Assistance Info */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Medical Assistance Information
-              </label>
-              <textarea
-                value={medicalAssistanceInfo}
-                onChange={(e) => setMedicalAssistanceInfo(e.target.value)}
-                placeholder="Information about medical facilities, first aid stations, emergency contacts..."
-                rows={3}
-                className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-              />
-            </div>
-
-            {/* Weather Advisory */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Weather Advisory
-              </label>
-              <textarea
-                value={weatherAdvisory}
-                onChange={(e) => setWeatherAdvisory(e.target.value)}
-                placeholder="Weather-related information, backup plans, recommended clothing..."
-                rows={3}
-                className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-              />
-            </div>
-
-            {/* Age Restrictions */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Age Restrictions
-              </label>
-              <input
-                type="text"
-                value={ageRestrictions}
-                onChange={(e) => setAgeRestrictions(e.target.value)}
-                placeholder="e.g., 18+, All ages, 21+ for alcohol areas"
-                className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-              />
-            </div>
-
-            {/* Prohibited Items */}
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Prohibited Items
+                Gallery Images
               </label>
               <div className="space-y-3">
                 <div className="flex gap-2">
                   <input
-                    type="text"
-                    placeholder="Add prohibited item (e.g., weapons, outside food, cameras)"
+                    type="url"
+                    placeholder="Add image URL (e.g., https://example.com/image.jpg)"
                     className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         const input = e.target as HTMLInputElement;
                         if (input.value.trim()) {
-                          setProhibitedItems([...prohibitedItems, input.value.trim()]);
+                          setGalleryImages([...galleryImages, input.value.trim()]);
                           input.value = '';
                         }
                       }
@@ -903,52 +907,79 @@ export function EnhancedEventForm({
                     onClick={(e) => {
                       const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input') as HTMLInputElement;
                       if (input?.value.trim()) {
-                        setProhibitedItems([...prohibitedItems, input.value.trim()]);
+                        setGalleryImages([...galleryImages, input.value.trim()]);
                         input.value = '';
                       }
                     }}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
                   >
                     <Plus size={16} />
                     Add
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryImageInputRef.current?.click()}
+                    disabled={uploadingGalleryType === 'image'}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
+                  >
+                    <Upload size={16} />
+                    Upload
+                  </button>
+                  <input
+                    ref={galleryImageInputRef}
+                    type="file"
+                    onChange={handleGalleryImageUpload}
+                    accept="image/*"
+                    className="hidden"
+                  />
                 </div>
-                {prohibitedItems.length > 0 && (
-                  <div className="space-y-2">
-                    {prohibitedItems.map((item, index) => (
-                      <div key={index} className="flex items-center justify-between bg-zinc-800 px-3 py-2 rounded-lg">
-                        <span className="text-white">{item}</span>
-                        <button
-                          type="button"
-                          onClick={() => setProhibitedItems(prohibitedItems.filter((_, i) => i !== index))}
-                          className="text-red-400 hover:text-red-300 p-1"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    ))}
+                {galleryImages.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {galleryImages.map((image, index) => {
+                      return (
+                        <div key={index} className="relative group">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={image}
+                            alt={`Gallery ${index + 1}`}
+                            className="w-full h-32 object-cover rounded-lg border border-zinc-600 cursor-pointer hover:opacity-80 transition-opacity"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="128" height="128"%3E%3Crect fill="%23333" width="128" height="128"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EImage Error%3C/text%3E%3C/svg%3E';
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setGalleryImages(galleryImages.filter((_, i) => i !== index))}
+                            className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Event Highlights */}
+            {/* Gallery Videos */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                Event Highlights
+                Gallery Videos
               </label>
               <div className="space-y-3">
                 <div className="flex gap-2">
                   <input
-                    type="text"
-                    placeholder="Add event highlight (e.g., Celebrity appearance, Free drinks)"
+                    type="url"
+                    placeholder="Add video URL (YouTube, Vimeo, etc.)"
                     className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         const input = e.target as HTMLInputElement;
                         if (input.value.trim()) {
-                          setEventHighlights([...eventHighlights, input.value.trim()]);
+                          setGalleryVideos([...galleryVideos, input.value.trim()]);
                           input.value = '';
                         }
                       }
@@ -959,25 +990,41 @@ export function EnhancedEventForm({
                     onClick={(e) => {
                       const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input') as HTMLInputElement;
                       if (input?.value.trim()) {
-                        setEventHighlights([...eventHighlights, input.value.trim()]);
+                        setGalleryVideos([...galleryVideos, input.value.trim()]);
                         input.value = '';
                       }
                     }}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
                   >
                     <Plus size={16} />
                     Add
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryVideoInputRef.current?.click()}
+                    disabled={uploadingGalleryType === 'video'}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
+                  >
+                    <Upload size={16} />
+                    Upload
+                  </button>
+                  <input
+                    ref={galleryVideoInputRef}
+                    type="file"
+                    onChange={handleGalleryVideoUpload}
+                    accept="video/*"
+                    className="hidden"
+                  />
                 </div>
-                {eventHighlights.length > 0 && (
+                {galleryVideos.length > 0 && (
                   <div className="space-y-2">
-                    {eventHighlights.map((highlight, index) => (
+                    {galleryVideos.map((video, index) => (
                       <div key={index} className="flex items-center justify-between bg-zinc-800 px-3 py-2 rounded-lg">
-                        <span className="text-white">{highlight}</span>
+                        <span className="text-white truncate text-sm">{video}</span>
                         <button
                           type="button"
-                          onClick={() => setEventHighlights(eventHighlights.filter((_, i) => i !== index))}
-                          className="text-red-400 hover:text-red-300 p-1"
+                          onClick={() => setGalleryVideos(galleryVideos.filter((_, i) => i !== index))}
+                          className="text-red-400 hover:text-red-300 p-1 shrink-0"
                         >
                           <Trash2 size={14} />
                         </button>
@@ -1068,141 +1115,6 @@ export function EnhancedEventForm({
                           }}
                           placeholder="Enter the answer..."
                           rows={4}
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Schedule Tab */}
-        {currentTab === 'schedule' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-white">Event Schedule</h3>
-              <button
-                type="button"
-                onClick={addScheduleItem}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-              >
-                <Plus size={16} />
-                Add Schedule Item
-              </button>
-            </div>
-            {schedules.length === 0 ? (
-              <div className="text-center py-8 text-gray-400">
-                No schedule items added yet. Click "Add Schedule Item" to get started.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {schedules.map((schedule, index) => (
-                  <div key={index} className="bg-zinc-800 border border-zinc-700 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h4 className="text-white font-medium">Schedule Item {index + 1}</h4>
-                      <button
-                        type="button"
-                        onClick={() => setSchedules(schedules.filter((_, i) => i !== index))}
-                        className="text-red-400 hover:text-red-300 p-1"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Day Number
-                        </label>
-                        <input
-                          type="number"
-                          min="1"
-                          value={schedule.day_number}
-                          onChange={(e) => {
-                            const newSchedules = [...schedules];
-                            newSchedules[index].day_number = parseInt(e.target.value);
-                            setSchedules(newSchedules);
-                          }}
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Location
-                        </label>
-                        <input
-                          type="text"
-                          value={schedule.location}
-                          onChange={(e) => {
-                            const newSchedules = [...schedules];
-                            newSchedules[index].location = e.target.value;
-                            setSchedules(newSchedules);
-                          }}
-                          placeholder="e.g., Main Stage, Conference Room A"
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Start Time
-                        </label>
-                        <input
-                          type="time"
-                          value={schedule.start_time}
-                          onChange={(e) => {
-                            const newSchedules = [...schedules];
-                            newSchedules[index].start_time = e.target.value;
-                            setSchedules(newSchedules);
-                          }}
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          End Time
-                        </label>
-                        <input
-                          type="time"
-                          value={schedule.end_time}
-                          onChange={(e) => {
-                            const newSchedules = [...schedules];
-                            newSchedules[index].end_time = e.target.value;
-                            setSchedules(newSchedules);
-                          }}
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Title
-                        </label>
-                        <input
-                          type="text"
-                          value={schedule.title}
-                          onChange={(e) => {
-                            const newSchedules = [...schedules];
-                            newSchedules[index].title = e.target.value;
-                            setSchedules(newSchedules);
-                          }}
-                          placeholder="e.g., Opening Ceremony, Keynote Speech"
-                          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-                        />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-300 mb-2">
-                          Description
-                        </label>
-                        <textarea
-                          value={schedule.description || ''}
-                          onChange={(e) => {
-                            const newSchedules = [...schedules];
-                            newSchedules[index].description = e.target.value;
-                            setSchedules(newSchedules);
-                          }}
-                          placeholder="Describe this schedule item..."
-                          rows={3}
                           className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
                         />
                       </div>

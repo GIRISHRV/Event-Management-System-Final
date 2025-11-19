@@ -34,20 +34,22 @@ export default function Home() {
           .select(`
             id,
             user_id,
+            user_email,
             event_name,
             event_description,
             start_date,
             start_time,
             end_date,
             end_time,
+            timezone,
             event_banner_url,
             visibility_type,
-            rsvp_required,
+            event_status,
             created_at,
             updated_at
           `)
-          .eq('visibility_type', 'public') // Only fetch public events for homepage
-          .gte('start_date', new Date().toISOString().split('T')[0]) // Only future events
+          .eq('visibility_type', 'public')
+          .gte('start_date', new Date().toISOString().split('T')[0])
           .order("start_date", { ascending: true })
           .limit(3);
 
@@ -57,11 +59,7 @@ export default function Home() {
           setUpcomingEvents([]);
           return;
         }
-        setUpcomingEvents((data || []).map(event => ({
-          ...event,
-          user_email: (event as any).user_email || (event as any).user_id || '',
-          event_status: (event as any).event_status || 'upcoming'
-        }) as Event));
+        setUpcomingEvents((data || []) as Event[]);
       } catch (err) {
         console.error("Error fetching events:", err);
         setUpcomingEvents([]); // Set empty array on error
@@ -178,14 +176,14 @@ export default function Home() {
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center">
+                    <div className="w-full h-full bg-linear-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center">
                       <Calendar size={48} className="text-zinc-600" />
                     </div>
                   )}
                 </div>
 
                 {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/50 to-transparent" />
 
                 {/* Content */}
                 <div className="absolute inset-0 flex flex-col justify-end p-6">

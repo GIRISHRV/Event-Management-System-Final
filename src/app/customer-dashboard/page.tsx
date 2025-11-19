@@ -43,24 +43,23 @@ export default function CustomerDashboardPage() {
 
     setEventsLoading(true);
     try {
-      // Query with all available columns from your database schema
+      // Query with available columns from database schema
       const { data, error } = await supabase
         .from("events")
         .select(`
           id, user_id, user_email, event_name, event_description, 
           start_date, start_time, end_date, end_time, timezone, 
           event_banner_url, visibility_type, event_status, 
-          max_attendees, rsvp_required, rsvp_deadline, age_restrictions,
-          venue_name, venue_address, venue_city, venue_state, venue_country,
-          venue_postal_code, venue_landmark, venue_type, google_maps_url,
-          venue_latitude, venue_longitude, organizer_name, organizer_contact,
-          organizer_email, parking_available, food_stalls, alcohol_available,
-          wheelchair_access, kids_allowed, pets_allowed,
-          schedules, performers, vendors, faqs, safety_guidelines,
-          facilities, invitations, rsvps, tags,
+          max_attendees,
+          venue_name, venue_address, venue_city, venue_landmark, 
+          venue_type, google_maps_url,
+          organizer_name, organizer_contact,
+          organizer_email,
+          schedules, performers, faqs,
+          gallery_images, gallery_videos, tags,
           created_at, updated_at
         `)
-        .eq("user_email", session.user.email) // Use user_email instead of user_id
+        .eq("user_email", session.user.email)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -75,25 +74,14 @@ export default function CustomerDashboardPage() {
         ...event,
         visibility_type: event.visibility_type || 'public',
         event_status: event.event_status || 'upcoming',
-        rsvp_required: event.rsvp_required ?? false,
         max_attendees: event.max_attendees || undefined,
-        rsvp_deadline: event.rsvp_deadline || undefined,
-        parking_available: event.parking_available ?? false,
-        food_stalls: event.food_stalls ?? false,
-        alcohol_available: event.alcohol_available ?? false,
-        wheelchair_access: event.wheelchair_access ?? false,
-        kids_allowed: event.kids_allowed ?? true,
-        pets_allowed: event.pets_allowed ?? false,
         schedules: event.schedules || [],
         performers: event.performers || [],
-        vendors: event.vendors || [],
         faqs: event.faqs || [],
-        safety_guidelines: event.safety_guidelines || [],
-        facilities: event.facilities || [],
-        invitations: event.invitations || [],
-        rsvps: event.rsvps || [],
+        gallery_images: event.gallery_images || [],
+        gallery_videos: event.gallery_videos || [],
         tags: event.tags || [],
-      }));
+      })) as Event[];
       
       setEvents(eventsWithDefaults);
       console.log("✅ Successfully loaded events with full schema");
@@ -145,10 +133,8 @@ export default function CustomerDashboardPage() {
         eventData = {
           ...basicEventData,
           visibility_type: data.visibility_type || 'private',
-          event_status: data.event_status || 'upcoming', // Use provided status or default to upcoming
-          rsvp_required: data.rsvp_required ?? false,
-          max_attendees: data.max_attendees || null,
-          rsvp_deadline: data.rsvp_deadline || null
+          event_status: data.event_status || 'upcoming',
+          max_attendees: data.max_attendees || null
         };
         console.log("✅ Using enhanced event creation with all fields");
       } else {
@@ -221,10 +207,8 @@ export default function CustomerDashboardPage() {
         updateData = {
           ...basicUpdateData,
           visibility_type: data.visibility_type || 'private',
-          event_status: data.event_status || 'upcoming', // Use provided status or default
-          rsvp_required: data.rsvp_required ?? false,
-          max_attendees: data.max_attendees || null,
-          rsvp_deadline: data.rsvp_deadline || null
+          event_status: data.event_status || 'upcoming',
+          max_attendees: data.max_attendees || null
         };
       } else {
         updateData = basicUpdateData;
