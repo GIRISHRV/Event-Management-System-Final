@@ -32,7 +32,7 @@ export function LoadingScreen({ message = "Loading...", isLoading = true }: Load
   return (
     <div 
       ref={containerRef} 
-      className="fixed inset-0 z-[100] bg-zinc-950 flex items-center justify-center overflow-hidden"
+      className="fixed inset-0 z-100 bg-zinc-950 flex items-center justify-center overflow-hidden"
     >
       <div className="absolute inset-0 z-0">
         <Squares
