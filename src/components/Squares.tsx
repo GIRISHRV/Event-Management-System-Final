@@ -30,18 +30,18 @@ const Squares: React.FC<SquaresProps> = ({
   const hoveredSquareRef = useRef<GridOffset | null>(null);
 
   useEffect(() => {
-    console.log('🎨 Squares component mounted');
+    // console.log('🎨 Squares component mounted');
     const canvas = canvasRef.current;
     if (!canvas) {
-      console.error('❌ Canvas ref is null');
+      // console.error('❌ Canvas ref is null');
       return;
     }
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      console.error('❌ Could not get 2D context');
+      // console.error('❌ Could not get 2D context');
       return;
     }
-    console.log('✅ Canvas context obtained successfully');
+    // console.log('✅ Canvas context obtained successfully');
 
     const resizeCanvas = () => {
       canvas.width = canvas.offsetWidth;

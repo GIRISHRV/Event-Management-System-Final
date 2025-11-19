@@ -25,23 +25,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Helper to fetch profile
-    const fetchProfile = async (userId: string) => {
-      try {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("*")
-          .eq("id", userId)
-          .single();
-        
-        if (profile) {
-          setUserProfile(profile as UserProfile);
-        }
-      } catch (err) {
-        // console.error("Profile fetch error:", err);
-      }
-    };
-
     // Get initial session from Supabase
     const initAuth = async () => {
       try {
@@ -51,10 +34,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (storedSession) {
           setSession(storedSession);
           // Fetch profile in background (don't wait)
-          void fetchProfile(storedSession.user.id);
+          const fetchProfile = async () => {
+            try {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", storedSession.user.id)
+                .single();
+              
+              if (profile) {
+                setUserProfile(profile as UserProfile);
+              }
+            } catch (err) {
+              console.error("Profile fetch error:", err);
+            }
+          };
+          void fetchProfile();
         }
       } catch (err) {
-        // console.error("Auth init error:", err);
+        console.error("Auth init error:", err);
       } finally {
         // Always set loading to false immediately
         setLoading(false);
@@ -70,7 +68,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (newSession?.user) {
           // Fetch updated profile in background
-          void fetchProfile(newSession.user.id);
+          const fetchProfile = async () => {
+            try {
+              const { data: profile } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", newSession.user.id)
+                .single();
+              
+              if (profile) {
+                setUserProfile(profile as UserProfile);
+              }
+            } catch (err) {
+              console.error("Profile fetch error:", err);
+            }
+          };
+          void fetchProfile();
         } else {
           setUserProfile(null);
         }

@@ -50,7 +50,8 @@ export function getErrorMessage(error: unknown): string {
 
 export function showErrorAlert(error: unknown): void {
   const message = getErrorMessage(error);
-  alert(message);
+  console.error("showErrorAlert called (deprecated):", message);
+  // alert(message); // Deprecated: Use useToast hook instead
 }
 
 export function logError(context: string, error: unknown): void {

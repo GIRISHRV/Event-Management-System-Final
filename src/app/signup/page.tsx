@@ -7,11 +7,13 @@ import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import PillNav from "@/components/PillNav";
+import { useToast } from "@/components/Toast";
 
 type Role = "customer" | "vendor";
 
 export default function SignUpPage() {
   const router = useRouter();
+  const { success: toastSuccess, Toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -77,17 +79,19 @@ export default function SignUpPage() {
           });
 
         if (profileError) {
-          console.error("Profile update error:", profileError);
+          // console.error("Profile update error:", profileError);
           // Don't fail the signup process for profile issues
         }
 
         // Don't login - just redirect to sign in page
-        alert("Account created! Please check your email for verification, then sign in with your credentials.");
-        router.push("/signin");
+        toastSuccess("Account created! Please check your email for verification, then sign in with your credentials.");
+        setTimeout(() => {
+          router.push("/signin");
+        }, 2000);
       }
     } catch (err) {
       setError("An unexpected error occurred");
-      console.error(err);
+      // console.error(err);
     } finally {
       setLoading(false);
     }
@@ -263,6 +267,7 @@ export default function SignUpPage() {
           </div>
         </div>
       </div>
+      <Toast />
     </div>
   );
 }

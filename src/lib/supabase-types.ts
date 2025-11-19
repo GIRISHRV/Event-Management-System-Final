@@ -49,8 +49,8 @@ export type Event = {
   venue_landmark?: string;
   venue_type?: 'indoor' | 'outdoor' | 'hybrid';
   google_maps_url?: string;
-  latitude?: number;
-  longitude?: number;
+  venue_latitude?: number;
+  venue_longitude?: number;
 
   // Organizer information
   organizer_name?: string;
@@ -105,13 +105,6 @@ export interface EventInvitationData {
   invited_at: string;
 }
 
-export interface EventRSVPData {
-  user_email: string;
-  status: 'going' | 'not_going' | 'maybe' | 'pending';
-  timestamp: string;
-  notes?: string;
-}
-
 export type CreateEventInput = Omit<
   Event,
   "id" | "created_at" | "updated_at"
@@ -124,19 +117,30 @@ export type EventFAQ = EventFAQData;
 
 export type EventWithDetails = Event;
 
-export type EventWithAttendeeInfo = Event & {
-  attendee_count?: number;
-  is_full?: boolean;
-  schedule_count?: number;
-  performer_count?: number;
-  faq_count?: number;
-};
-
 // Location-based search types
 export type EventLocation = {
   event_id: string;
   event_name: string;
   distance_km: number;
 };
+
+// Chat history types
+export interface ChatHistoryMessage {
+  id: string;
+  type: 'user' | 'bot' | 'error';
+  content: string;
+  source?: 'local' | 'AI' | 'web';
+  responseTime?: number;
+  timestamp?: string;
+}
+
+export interface ChatHistory {
+  id: string;
+  user_id: string;
+  event_id: string;
+  messages: ChatHistoryMessage[];
+  created_at: string;
+  updated_at: string;
+}
 
 // Add more types as needed based on your database schema

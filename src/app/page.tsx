@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { ArrowRight, LogOut, Calendar } from "lucide-react";
+import { ArrowRight, LogOut, Calendar, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
@@ -49,19 +49,18 @@ export default function Home() {
             updated_at
           `)
           .eq('visibility_type', 'public')
-          .gte('start_date', new Date().toISOString().split('T')[0])
           .order("start_date", { ascending: true })
           .limit(3);
 
         if (error) {
-          console.error("Database error:", error);
+          // console.error("Database error:", error);
           // Don't throw error - just show empty state
           setUpcomingEvents([]);
           return;
         }
         setUpcomingEvents((data || []) as Event[]);
       } catch (err) {
-        console.error("Error fetching events:", err);
+        // console.error("Error fetching events:", err);
         setUpcomingEvents([]); // Set empty array on error
       }
     };
@@ -73,7 +72,7 @@ export default function Home() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <p className="text-white">Loading...</p>
+        <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
       </div>
     );
   }

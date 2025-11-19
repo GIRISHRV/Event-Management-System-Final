@@ -31,7 +31,7 @@ export function useSupabaseAuth() {
         setUserProfile(data);
       }
     } catch (err) {
-      console.error("Error fetching profile:", err);
+      // console.error("Error fetching profile:", err);
       // Don't block auth on profile fetch failure
       setError(err instanceof Error ? err.message : "Profile fetch error");
     }

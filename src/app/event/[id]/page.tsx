@@ -6,19 +6,27 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import PillNav from "@/components/PillNav";
 import { EnhancedEventForm } from "@/components/EnhancedEventForm";
+import { EventChatbot } from "@/components/EventChatbot";
+import { EventMap } from "@/components/EventMap";
+import { useToast } from "@/components/Toast";
+import { ConfirmModal } from "@/components/ConfirmModal";
 import type { Event, CreateEventInput, EventPerformerData } from "@/lib/supabase-types";
-import { ArrowLeft, Calendar, MapPin, Edit2, Trash2, Clock, User, ExternalLink, Zap, X } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Edit2, Trash2, Clock, User, ExternalLink, Zap, X, Share2, Loader2 } from "lucide-react";
 import Image from "next/image";
 
 export default function EventDetailsPage() {
   const router = useRouter();
   const params = useParams();
+  const { error: toastError, success: toastSuccess, Toast } = useToast();
   const { session, userProfile } = useAuth();
   const [event, setEvent] = useState<Event | null>(null);
   const [eventLoading, setEventLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [allGalleryItems, setAllGalleryItems] = useState<Array<{ url: string; type: 'image' | 'video'; isYoutube: boolean }>>([]);
@@ -35,12 +43,14 @@ export default function EventDetailsPage() {
         .single();
 
       if (error) {
-        console.error("Error fetching event:", error);
+        // console.error("Error fetching event:", error);
         setError("Event not found");
         return;
       }
 
-      if (data.visibility_type === 'private' && (!session || data.user_email !== session.user.email)) {
+      // Check access using current session at time of fetch
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (data.visibility_type === 'private' && (!currentSession || data.user_email !== currentSession.user.email)) {
         setError("This is a private event");
         return;
       }
@@ -82,12 +92,12 @@ export default function EventDetailsPage() {
       
       setAllGalleryItems(items);
     } catch (err) {
-      console.error("Error:", err);
+      // console.error("Error:", err);
       setError("Failed to load event");
     } finally {
       setEventLoading(false);
     }
-  }, [eventId, session]);
+  }, [eventId]);
 
   useEffect(() => {
     if (eventId) {
@@ -99,10 +109,12 @@ export default function EventDetailsPage() {
     setIsEditing(true);
   };
 
-  const handleDelete = async () => {
-    if (!event || !confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
-      return;
-    }
+  const handleDelete = () => {
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!event) return;
 
     try {
       setIsDeleting(true);
@@ -112,17 +124,18 @@ export default function EventDetailsPage() {
         .eq('id', event.id);
 
       if (error) {
-        console.error('Error deleting event:', error);
-        alert('Failed to delete event. Please try again.');
+        // console.error('Error deleting event:', error);
+        toastError('Failed to delete event. Please try again.');
         return;
       }
 
       router.push(userProfile?.role === 'vendor' ? '/vendor-dashboard' : '/customer-dashboard');
     } catch (error) {
-      console.error('Error deleting event:', error);
-      alert('Failed to delete event. Please try again.');
+      // console.error('Error deleting event:', error);
+      toastError('Failed to delete event. Please try again.');
     } finally {
       setIsDeleting(false);
+      setDeleteModalOpen(false);
     }
   };
 
@@ -139,7 +152,7 @@ export default function EventDetailsPage() {
   if (eventLoading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <p className="text-white">Loading event...</p>
+        <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
       </div>
     );
   }
@@ -261,23 +274,64 @@ export default function EventDetailsPage() {
         </div>
 
         {/* Action Buttons */}
-        {isOwner && (
-          <div className="max-w-6xl mx-auto px-6 py-4 flex gap-3">
-            <button
-              onClick={handleEdit}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
-            >
-              <Edit2 size={18} />
-              Edit Event
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={isDeleting}
-              className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 font-medium rounded-lg transition-colors disabled:opacity-50"
-            >
-              <Trash2 size={18} />
-              Delete Event
-            </button>
+        <div className="max-w-6xl mx-auto px-6 py-4 flex gap-3 flex-wrap">
+          {isOwner && (
+            <>
+              <button
+                onClick={handleEdit}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+              >
+                <Edit2 size={18} />
+                Edit Event
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/40 text-red-400 font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Trash2 size={18} />
+                Delete Event
+              </button>
+            </>
+          )}
+
+          {/* Share Button - Available for all */}
+          <button
+            onClick={() => setShowShareModal(!showShareModal)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            <Share2 size={18} />
+            Share Event
+          </button>
+        </div>
+
+        {/* Share Modal - Below buttons */}
+        {showShareModal && (
+          <div className="max-w-6xl mx-auto px-6 py-4">
+            <div className="bg-zinc-900/50 rounded-lg border border-zinc-700/50 backdrop-blur p-4">
+              <h3 className="text-white font-semibold mb-3">Share Event Link</h3>
+              
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={typeof window !== 'undefined' ? `${window.location.origin}/event/${eventId}` : ''}
+                  readOnly
+                  className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm"
+                />
+                <button
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      navigator.clipboard.writeText(`${window.location.origin}/event/${eventId}`);
+                      setCopySuccess(true);
+                      setTimeout(() => setCopySuccess(false), 2000);
+                    }
+                  }}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors whitespace-nowrap"
+                >
+                  {copySuccess ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
           </div>
         )}
         <div className="max-w-6xl mx-auto px-6 py-12">
@@ -354,6 +408,11 @@ export default function EventDetailsPage() {
                 </p>
               </div>
             </div>
+          )}
+
+          {/* Map Section */}
+          {event.latitude && event.longitude && (
+            <EventMap event={event} nearbyEvents={[]} />
           )}
 
           {/* Schedule Section */}
@@ -654,31 +713,14 @@ export default function EventDetailsPage() {
 
                       if (error) throw error;
                       
+                      toastSuccess("Event updated successfully!");
                       handleEventUpdate(updatedEvent);
                     } catch (error) {
-                      console.error('Error updating event - Full error:', error);
-                      if (error && typeof error === 'object') {
-                        console.error('Error keys:', Object.keys(error as Record<string, unknown>));
-                        const errorObj = error as Record<string, unknown>;
-                        console.error('Error code:', errorObj.code);
-                        console.error('Error message:', errorObj.message);
-                        console.error('Error details:', errorObj.details);
-                      }
-                      
                       const errorMessage = error && typeof error === 'object' && 'message' in error 
                         ? (error as { message: string }).message 
                         : 'Unknown error occurred';
-                      const errorDetails = error && typeof error === 'object' && 'details' in error 
-                        ? (error as { details: string }).details 
-                        : 'No additional details';
                       
-                      console.error('Error updating event:', {
-                        message: errorMessage,
-                        details: errorDetails,
-                        fullError: JSON.stringify(error, null, 2)
-                      });
-                      
-                      alert(`Failed to update event: ${errorMessage}`);
+                      toastError(`Failed to update event: ${errorMessage}`);
                       throw error;
                     }
                   }}
@@ -690,6 +732,22 @@ export default function EventDetailsPage() {
           </div>
         </div>
       )}
+
+      {/* Event Chatbot - appears only for public events */}
+      {event && event.visibility_type === "public" && <EventChatbot event={event} />}
+      
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Event"
+        message="Are you sure you want to delete this event? This action cannot be undone."
+        confirmText="Delete Event"
+        isDestructive={true}
+        isLoading={isDeleting}
+      />
+      
+      <Toast />
     </div>
   );
 }

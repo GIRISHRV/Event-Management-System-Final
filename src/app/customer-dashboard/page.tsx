@@ -4,25 +4,30 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { LogOut, Plus, Calendar, Globe } from "lucide-react";
-import { EventForm } from "@/components/EventForm";
+import { LogOut, Plus, Calendar, Globe, Loader2 } from "lucide-react";
+import { EnhancedEventForm } from "@/components/EnhancedEventForm";
 import { EventList } from "@/components/EventList";
 import { PublicEventList } from "@/components/PublicEventList";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Event, CreateEventInput } from "@/lib/supabase-types";
-import { logError, showErrorAlert } from "@/lib/error-handler";
+import { logError, getErrorMessage } from "@/lib/error-handler";
 import Squares from "@/components/Squares";
 import PillNav from "@/components/PillNav";
+import { useToast } from "@/components/Toast";
+import { ConfirmModal } from "@/components/ConfirmModal";
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
   const { session, userProfile, loading, signOut } = useAuth();
+  const { error: toastError, success: toastSuccess, Toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | undefined>();
   const [formLoading, setFormLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'my-events' | 'discover'>('my-events');
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [eventToDelete, setEventToDelete] = useState<string | null>(null);
 
   // Protect route - redirect if not customer
   // Only redirect if: loading is done AND (no session OR not a customer)
@@ -84,11 +89,10 @@ export default function CustomerDashboardPage() {
       })) as Event[];
       
       setEvents(eventsWithDefaults);
-      console.log("✅ Successfully loaded events with full schema");
       
     } catch (err) {
       logError("fetchEvents", err);
-      showErrorAlert(err);
+      toastError(getErrorMessage(err));
     } finally {
       setEventsLoading(false);
     }
@@ -136,23 +140,16 @@ export default function CustomerDashboardPage() {
           event_status: data.event_status || 'upcoming',
           max_attendees: data.max_attendees || null
         };
-        console.log("✅ Using enhanced event creation with all fields");
       } else {
         // New columns don't exist, use basic data
         eventData = basicEventData;
-        console.log("ℹ️ Using basic event creation - run database migration for enhanced features");
       }
       
       const { error } = await supabase.from("events").insert([eventData]);
 
       if (error) {
-        console.error("Supabase error:", error);
-        console.error("Error code:", error.code);
-        console.error("Error message:", error.message);
-        
         // If enhanced creation failed, try with basic data
         if (eventData !== basicEventData) {
-          console.log("Retrying with basic event data...");
           const { error: basicError } = await supabase.from("events").insert([basicEventData]);
           if (basicError) {
             throw new Error(basicError.message || "Failed to create event");
@@ -170,7 +167,6 @@ export default function CustomerDashboardPage() {
       await fetchEvents();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-      console.error("Error creating event:", errorMessage);
       throw err;
     } finally {
       setFormLoading(false);
@@ -182,89 +178,54 @@ export default function CustomerDashboardPage() {
 
     setFormLoading(true);
     try {
-      // Try basic update first
-      const basicUpdateData = {
-        event_name: data.event_name,
-        event_description: data.event_description,
-        start_date: data.start_date,
-        start_time: data.start_time,
-        end_date: data.end_date,
-        end_time: data.end_time,
-        timezone: data.timezone,
-        event_banner_url: data.event_banner_url,
-        event_status: data.event_status || 'upcoming' // Include event_status
-      };
-      
-      // Check if new columns exist
-      const { data: columnTest } = await supabase
-        .from("events")
-        .select("visibility_type")
-        .limit(1);
-      
-      let updateData;
-      if (columnTest !== null) {
-        // New columns exist, use enhanced data
-        updateData = {
-          ...basicUpdateData,
-          visibility_type: data.visibility_type || 'private',
-          event_status: data.event_status || 'upcoming',
-          max_attendees: data.max_attendees || null
-        };
-      } else {
-        updateData = basicUpdateData;
-      }
-      
       const { error } = await supabase
         .from("events")
-        .update(updateData)
+        .update(data)
         .eq("id", editingEvent.id);
 
       if (error) {
-        console.error("Update error:", error);
-        // If enhanced update failed, try with basic data
-        if (updateData !== basicUpdateData) {
-          const { error: basicError } = await supabase
-            .from("events")
-            .update(basicUpdateData)
-            .eq("id", editingEvent.id);
-          if (basicError) throw basicError;
-        } else {
-          throw error;
-        }
+        throw new Error(error.message || "Failed to update event");
       }
 
       setShowForm(false);
       setEditingEvent(undefined);
       await fetchEvents();
     } catch (err) {
-      console.error("Error updating event:", err);
+      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
       throw err;
     } finally {
       setFormLoading(false);
     }
   };
 
-  const handleDeleteEvent = async (eventId: string) => {
-    if (!confirm("Are you sure you want to delete this event?")) return;
+  const handleDeleteEvent = (eventId: string) => {
+    setEventToDelete(eventId);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!eventToDelete) return;
 
     setEventsLoading(true);
     try {
       const { error } = await supabase
         .from("events")
         .delete()
-        .eq("id", eventId);
+        .eq("id", eventToDelete);
 
       if (error) {
-        console.error("Supabase error:", error);
         throw new Error(error.message || "Failed to delete event");
       }
 
+      toastSuccess("Event deleted successfully");
       await fetchEvents();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-      console.error("Error deleting event:", errorMessage);
+      toastError(errorMessage);
     } finally {
       setEventsLoading(false);
+      setDeleteModalOpen(false);
+      setEventToDelete(null);
     }
   };
 
@@ -287,7 +248,10 @@ export default function CustomerDashboardPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <p className="text-white">Loading...</p>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
+          <p className="text-white text-sm">Loading...</p>
+        </div>
       </div>
     );
   }
@@ -296,7 +260,10 @@ export default function CustomerDashboardPage() {
   if (session && !userProfile) {
     return (
       <div className="min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center">
-        <p className="text-gray-800 dark:text-white">Loading profile...</p>
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
+          <p className="text-gray-800 dark:text-white text-sm">Loading profile...</p>
+        </div>
       </div>
     );
   }
@@ -434,16 +401,38 @@ export default function CustomerDashboardPage() {
 
       {/* Event Form Modal */}
       {showForm && (
-        <EventForm
-          event={editingEvent}
-          onSubmit={
-            editingEvent ? handleUpdateEvent : handleCreateEvent
-          }
-          onClose={handleCloseForm}
-          isLoading={formLoading}
-          userEmail={session.user.email || ""}
-        />
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+          <div className="bg-zinc-950 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl">
+            <div className="flex-1 overflow-y-auto p-6">
+              <EnhancedEventForm
+                event={editingEvent}
+                onSubmit={
+                  editingEvent ? handleUpdateEvent : handleCreateEvent
+                }
+                onClose={handleCloseForm}
+                isLoading={formLoading}
+                userEmail={session.user.email || ""}
+              />
+            </div>
+          </div>
+        </div>
       )}
+      
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setEventToDelete(null);
+        }}
+        onConfirm={confirmDelete}
+        title="Delete Event"
+        message="Are you sure you want to delete this event? This action cannot be undone."
+        confirmText="Delete"
+        isDestructive={true}
+        isLoading={eventsLoading}
+      />
+      
+      <Toast />
     </div>
   );
 }

@@ -42,11 +42,11 @@ export default function SignInPage() {
           .single();
 
         if (profileError) {
-          console.error("Error fetching profile:", profileError);
+          // console.error("Error fetching profile:", profileError);
           
           // If profile doesn't exist, create it with default role
           if (profileError.code === 'PGRST116') {
-            console.log("Profile not found, creating default profile...");
+            // console.log("Profile not found, creating default profile...");
             const { error: createError } = await supabase
               .from("profiles")
               .insert({
@@ -57,7 +57,7 @@ export default function SignInPage() {
               });
 
             if (createError) {
-              console.error("Error creating profile:", createError);
+              // console.error("Error creating profile:", createError);
               setError("Could not create user profile");
               return;
             }
@@ -82,7 +82,7 @@ export default function SignInPage() {
       }
     } catch (err) {
       setError("An unexpected error occurred");
-      console.error(err);
+      // console.error(err);
     } finally {
       setLoading(false);
     }
