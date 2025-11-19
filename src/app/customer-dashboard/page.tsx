@@ -14,7 +14,6 @@ import { logError, getErrorMessage } from "@/lib/error-handler";
 import Squares from "@/components/Squares";
 import PillNav from "@/components/PillNav";
 import { useToast } from "@/components/Toast";
-import { ConfirmModal } from "@/components/ConfirmModal";
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
@@ -23,11 +22,8 @@ export default function CustomerDashboardPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<Event | undefined>();
   const [formLoading, setFormLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'my-events' | 'discover'>('my-events');
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [eventToDelete, setEventToDelete] = useState<string | null>(null);
 
   // Protect route - redirect if not customer
   // Only redirect if: loading is done AND (no session OR not a customer)
@@ -161,7 +157,6 @@ export default function CustomerDashboardPage() {
 
       // Update local state immediately for better UX
       setShowForm(false);
-      setEditingEvent(undefined);
       
       // Fetch fresh data from database
       await fetchEvents();
@@ -173,75 +168,13 @@ export default function CustomerDashboardPage() {
     }
   };
 
-  const handleUpdateEvent = async (data: CreateEventInput) => {
-    if (!editingEvent) return;
-
-    setFormLoading(true);
-    try {
-      const { error } = await supabase
-        .from("events")
-        .update(data)
-        .eq("id", editingEvent.id);
-
-      if (error) {
-        throw new Error(error.message || "Failed to update event");
-      }
-
-      setShowForm(false);
-      setEditingEvent(undefined);
-      await fetchEvents();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-      throw err;
-    } finally {
-      setFormLoading(false);
-    }
-  };
-
-  const handleDeleteEvent = (eventId: string) => {
-    setEventToDelete(eventId);
-    setDeleteModalOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!eventToDelete) return;
-
-    setEventsLoading(true);
-    try {
-      const { error } = await supabase
-        .from("events")
-        .delete()
-        .eq("id", eventToDelete);
-
-      if (error) {
-        throw new Error(error.message || "Failed to delete event");
-      }
-
-      toastSuccess("Event deleted successfully");
-      await fetchEvents();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-      toastError(errorMessage);
-    } finally {
-      setEventsLoading(false);
-      setDeleteModalOpen(false);
-      setEventToDelete(null);
-    }
-  };
-
   const handleSignOut = async () => {
     await signOut();
     router.push("/");
   };
 
-  const handleEditEvent = (event: Event) => {
-    setEditingEvent(event);
-    setShowForm(true);
-  };
-
   const handleCloseForm = () => {
     setShowForm(false);
-    setEditingEvent(undefined);
   };
 
   // Show loading screen while checking auth
@@ -318,7 +251,6 @@ export default function CustomerDashboardPage() {
           {activeTab === 'my-events' && (
             <button
               onClick={() => {
-                setEditingEvent(undefined);
                 setShowForm(true);
               }}
               className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2"
@@ -360,14 +292,10 @@ export default function CustomerDashboardPage() {
           {activeTab === 'my-events' ? (
             <EventList
               events={events}
-              onEdit={handleEditEvent}
-              onDelete={handleDeleteEvent}
               isLoading={eventsLoading}
-              currentUserId={session.user.id}
-              showActions={true}
             />
           ) : (
-            <PublicEventList currentUserId={session.user.id} />
+            <PublicEventList />
           )}
         </div>
 
@@ -405,10 +333,8 @@ export default function CustomerDashboardPage() {
           <div className="bg-zinc-950 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl">
             <div className="flex-1 overflow-y-auto p-6">
               <EnhancedEventForm
-                event={editingEvent}
-                onSubmit={
-                  editingEvent ? handleUpdateEvent : handleCreateEvent
-                }
+                event={undefined}
+                onSubmit={handleCreateEvent}
                 onClose={handleCloseForm}
                 isLoading={formLoading}
                 userEmail={session.user.email || ""}
@@ -417,20 +343,6 @@ export default function CustomerDashboardPage() {
           </div>
         </div>
       )}
-      
-      <ConfirmModal
-        isOpen={deleteModalOpen}
-        onClose={() => {
-          setDeleteModalOpen(false);
-          setEventToDelete(null);
-        }}
-        onConfirm={confirmDelete}
-        title="Delete Event"
-        message="Are you sure you want to delete this event? This action cannot be undone."
-        confirmText="Delete"
-        isDestructive={true}
-        isLoading={eventsLoading}
-      />
       
       <Toast />
     </div>

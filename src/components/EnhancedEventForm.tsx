@@ -93,7 +93,6 @@ export function EnhancedEventForm({
   userEmail,
 }: EnhancedEventFormProps) {
   const [currentTab, setCurrentTab] = useState<FormTab>('basic');
-  const currentTabRef = useRef<FormTab>('basic');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const performerImageInputRef = useRef<HTMLInputElement>(null);
   const galleryImageInputRef = useRef<HTMLInputElement>(null);
@@ -1128,7 +1127,6 @@ export function EnhancedEventForm({
                 type="button"
                 onClick={() => {
                   setCurrentTab(tab.id);
-                  currentTabRef.current = tab.id;
                 }}
                 className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
                   currentTab === tab.id

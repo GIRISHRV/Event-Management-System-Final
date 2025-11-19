@@ -8,12 +8,12 @@ import { getPublicEvents } from "@/lib/events";
 import type { EventWithAttendeeInfo } from "@/lib/supabase-types";
 
 interface PublicEventListProps {
-  currentUserId: string;
+  // No props needed currently
 }
 
 const EVENTS_PER_PAGE = 9;
 
-export function PublicEventList({ currentUserId }: PublicEventListProps) {
+export function PublicEventList({}: PublicEventListProps) {
   const [events, setEvents] = useState<EventWithAttendeeInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");

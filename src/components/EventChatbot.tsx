@@ -44,7 +44,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [recommendations, setRecommendations] = useState<string[]>([]);
   const [showRecommendations, setShowRecommendations] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -61,8 +60,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
   useEffect(() => {
     if (isOpen && session) {
       loadChatHistory();
-    } else {
-      setIsLoadingHistory(false);
     }
   }, [isOpen, session]);
 
@@ -73,7 +70,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
 
   const loadChatHistory = async () => {
     if (!session) {
-      setIsLoadingHistory(false);
       return;
     }
 
@@ -106,8 +102,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
       }
     } catch (error) {
       console.error("[EventChatbot] Error loading chat history:", error);
-    } finally {
-      setIsLoadingHistory(false);
     }
   };
 
