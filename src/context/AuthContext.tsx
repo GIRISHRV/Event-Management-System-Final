@@ -3,12 +3,10 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Session } from "@supabase/supabase-js";
+import type { Profile } from "@/lib/supabase-types";
 
-export interface UserProfile {
-  id: string;
-  email: string;
-  role: "customer" | "vendor";
-}
+// Use the Profile type from supabase-types, but ensure role is compatible
+export type UserProfile = Profile;
 
 interface AuthContextType {
   session: Session | null;

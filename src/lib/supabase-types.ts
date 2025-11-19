@@ -7,6 +7,7 @@ export type Profile = {
   username?: string;
   full_name?: string;
   avatar_url?: string;
+  bio?: string;
   role: 'customer' | 'vendor' | 'admin';
   created_at: string;
   updated_at?: string;
@@ -142,5 +143,13 @@ export interface ChatHistory {
   created_at: string;
   updated_at: string;
 }
+
+export type Booking = {
+  id: string;
+  event_id: string;
+  user_id: string;
+  status: 'confirmed' | 'cancelled' | 'waitlist';
+  created_at: string;
+};
 
 // Add more types as needed based on your database schema

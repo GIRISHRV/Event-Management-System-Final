@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Event } from "@/lib/supabase-types";
+import type { Map, Layer } from "leaflet";
 
 interface EventMapProps {
   event: Event;
@@ -10,11 +11,11 @@ interface EventMapProps {
 
 export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any | null>(null);
+  const mapRef = useRef<Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Check if we have valid coordinates
-  const hasCoordinates = event.latitude && event.longitude;
+  const hasCoordinates = event.venue_latitude && event.venue_longitude;
 
   useEffect(() => {
     if (!hasCoordinates || !mapContainer.current || isLoaded) return;
@@ -35,7 +36,7 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
         // Initialize map
         if (!mapRef.current && mapContainer.current) {
           mapRef.current = L.map(mapContainer.current).setView(
-            [event.latitude!, event.longitude!],
+            [event.venue_latitude!, event.venue_longitude!],
             13
           );
 
@@ -48,10 +49,10 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
         }
 
         // Clear existing markers
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        mapRef.current?.eachLayer((layer: any) => {
-          if (layer._icon) { // Marker has _icon property
-            mapRef.current.removeLayer(layer);
+        mapRef.current?.eachLayer((layer: Layer) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if ((layer as any)._icon) { // Marker has _icon property
+            mapRef.current?.removeLayer(layer);
           }
         });
 
@@ -67,7 +68,7 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
           shadowSize: [41, 41],
         });
 
-        const mainMarker = L.marker([event.latitude!, event.longitude!], {
+        const mainMarker = L.marker([event.venue_latitude!, event.venue_longitude!], {
           icon: mainIcon,
         })
           .bindPopup(
@@ -75,7 +76,7 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
             <div class="p-2">
               <h3 class="font-bold text-sm">${event.event_name}</h3>
               <p class="text-xs text-gray-600">${event.venue_name || "No venue"}</p>
-              <a href="https://www.google.com/maps/search/${event.latitude},${event.longitude}" target="_blank" class="text-xs text-blue-500 hover:underline mt-2 inline-block">Get Directions →</a>
+              <a href="https://www.google.com/maps/search/${event.venue_latitude},${event.venue_longitude}" target="_blank" class="text-xs text-blue-500 hover:underline mt-2 inline-block">Get Directions →</a>
             </div>
           `
           )
@@ -83,7 +84,7 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
 
         // Add nearby events markers
         nearbyEvents.forEach((nearbyEvent) => {
-          if (nearbyEvent.latitude && nearbyEvent.longitude) {
+          if (nearbyEvent.venue_latitude && nearbyEvent.venue_longitude) {
             const nearbyIcon = L.icon({
               iconUrl:
                 "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
@@ -95,7 +96,7 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
               shadowSize: [41, 41],
             });
 
-            L.marker([nearbyEvent.latitude, nearbyEvent.longitude], {
+            L.marker([nearbyEvent.venue_latitude, nearbyEvent.venue_longitude], {
               icon: nearbyIcon,
             })
               .bindPopup(
@@ -115,9 +116,9 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
         if (nearbyEvents.length > 0 && mapRef.current) {
           const group = new L.FeatureGroup([mainMarker]);
           nearbyEvents.forEach((nearbyEvent) => {
-            if (nearbyEvent.latitude && nearbyEvent.longitude) {
+            if (nearbyEvent.venue_latitude && nearbyEvent.venue_longitude) {
               group.addLayer(
-                L.marker([nearbyEvent.latitude, nearbyEvent.longitude])
+                L.marker([nearbyEvent.venue_latitude, nearbyEvent.venue_longitude])
               );
             }
           });

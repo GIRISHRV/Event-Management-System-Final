@@ -1,9 +1,13 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import type { Event } from "@/lib/supabase-types";
+import { SkeletonCard } from "./SkeletonCard";
 
 interface EventListProps {
   events: Event[];
@@ -14,6 +18,28 @@ export function EventList({
   events,
   isLoading = false,
 }: EventListProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!isLoading && events.length > 0) {
+      gsap.fromTo(
+        ".event-card",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
+      );
+    }
+  }, { dependencies: [isLoading, events] });
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {[...Array(6)].map((_, i) => (
+          <SkeletonCard key={i} />
+        ))}
+      </div>
+    );
+  }
+
   if (events.length === 0) {
     return (
       <div className="p-12 text-center border border-zinc-700/50 rounded-2xl bg-zinc-900/60 backdrop-blur-md shadow-lg">
@@ -27,12 +53,12 @@ export function EventList({
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div ref={containerRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {events.map((event) => (
         <Link
           key={event.id}
           href={`/event/${event.id}`}
-          className="group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
+          className="event-card group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block opacity-0"
           style={{ aspectRatio: '3/4' }}
         >
           {/* Background Image */}

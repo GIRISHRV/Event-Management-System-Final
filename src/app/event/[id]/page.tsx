@@ -10,9 +10,14 @@ import { EventChatbot } from "@/components/EventChatbot";
 import { EventMap } from "@/components/EventMap";
 import { useToast } from "@/components/Toast";
 import { ConfirmModal } from "@/components/ConfirmModal";
+import RSVPButton from "@/components/RSVPButton";
 import type { Event, CreateEventInput, EventPerformerData } from "@/lib/supabase-types";
-import { ArrowLeft, Calendar, MapPin, Edit2, Trash2, Clock, User, ExternalLink, Zap, X, Share2, Loader2 } from "lucide-react";
+import { ArrowLeft, Calendar, MapPin, Edit2, Trash2, Clock, User, ExternalLink, Zap, X, Share2, LayoutDashboard, Eye } from "lucide-react";
+import { LoadingScreen } from "@/components/LoadingScreen";
 import Image from "next/image";
+import { EventOrganizerView } from "@/components/EventOrganizerView";
+
+const YOUTUBE_REGEX = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
 
 export default function EventDetailsPage() {
   const router = useRouter();
@@ -30,6 +35,7 @@ export default function EventDetailsPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [allGalleryItems, setAllGalleryItems] = useState<Array<{ url: string; type: 'image' | 'video'; isYoutube: boolean }>>([]);
+  const [viewMode, setViewMode] = useState<'public' | 'manage'>('public');
 
   const eventId = params?.id as string;
 
@@ -43,7 +49,6 @@ export default function EventDetailsPage() {
         .single();
 
       if (error) {
-        // console.error("Error fetching event:", error);
         setError("Event not found");
         return;
       }
@@ -84,14 +89,13 @@ export default function EventDetailsPage() {
       // Add videos and detect YouTube
       if (data.gallery_videos && data.gallery_videos.length > 0) {
         data.gallery_videos.forEach((video: string) => {
-          const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-          const isYoutube = youtubeRegex.test(video);
+          const isYoutube = YOUTUBE_REGEX.test(video);
           items.push({ url: video, type: 'video', isYoutube });
         });
       }
       
       setAllGalleryItems(items);
-    } catch (err) {
+    } catch {
       // console.error("Error:", err);
       setError("Failed to load event");
     } finally {
@@ -130,7 +134,7 @@ export default function EventDetailsPage() {
       }
 
       router.push(userProfile?.role === 'vendor' ? '/vendor-dashboard' : '/customer-dashboard');
-    } catch (error) {
+    } catch {
       // console.error('Error deleting event:', error);
       toastError('Failed to delete event. Please try again.');
     } finally {
@@ -149,57 +153,13 @@ export default function EventDetailsPage() {
     router.push("/");
   };
 
-  if (eventLoading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-zinc-950">
-        <PillNav
-          items={[
-            { label: "Home", href: "/" },
-            ...(session ? [{ label: "Dashboard", href: userProfile?.role === "customer" ? "/customer-dashboard" : "/vendor-dashboard" }] : [])
-          ]}
-          activeHref="/event"
-          userEmail={session?.user?.email}
-          onSignOut={handleSignOut}
-          showAuth={!!session}
-        />
-        
-        <div className="relative z-20 max-w-4xl mx-auto px-6 py-12 pt-24">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-white mb-4">Event Not Found</h1>
-            <p className="text-red-400 mb-8">{error}</p>
-            <button
-              onClick={() => router.back()}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
-            >
-              <ArrowLeft size={20} />
-              Go Back
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!event) {
-    return null;
-  }
-
-  const isOwner = session?.user?.email === event.user_email;
-  const eventDate = new Date(event.start_date);
-  const formattedDate = eventDate.toLocaleDateString('en-US', { 
+  const isOwner = event ? session?.user?.email === event.user_email : false;
+  const formattedDate = event ? new Date(event.start_date).toLocaleDateString('en-US', { 
     weekday: 'long', 
     month: 'long', 
     day: 'numeric',
     year: 'numeric'
-  });
+  }) : '';
 
   const navItems = session 
     ? [
@@ -214,15 +174,46 @@ export default function EventDetailsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <PillNav
-        items={navItems}
-        activeHref="/event"
-        userEmail={session?.user?.email}
-        onSignOut={handleSignOut}
-        showAuth={!!session}
-      />
+      <LoadingScreen message="Loading event details..." isLoading={eventLoading} />
 
-      <div className="pt-20">
+      {error ? (
+        <>
+          <PillNav
+            items={[
+              { label: "Home", href: "/" },
+              ...(session ? [{ label: "Dashboard", href: userProfile?.role === "customer" ? "/customer-dashboard" : "/vendor-dashboard" }] : [])
+            ]}
+            activeHref="/event"
+            userEmail={session?.user?.email}
+            onSignOut={handleSignOut}
+            showAuth={!!session}
+          />
+          
+          <div className="relative z-20 max-w-4xl mx-auto px-6 py-12 pt-24">
+            <div className="text-center">
+              <h1 className="text-4xl font-bold text-white mb-4">Event Not Found</h1>
+              <p className="text-red-400 mb-8">{error}</p>
+              <button
+                onClick={() => router.back()}
+                className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+              >
+                <ArrowLeft size={20} />
+                Go Back
+              </button>
+            </div>
+          </div>
+        </>
+      ) : event && (
+        <>
+          <PillNav
+            items={navItems}
+            activeHref="/event"
+            userEmail={session?.user?.email}
+            onSignOut={handleSignOut}
+            showAuth={!!session}
+          />
+
+          <div className="pt-20">
         {/* Hero Section with Banner */}
         <div className="relative h-96 bg-zinc-900 overflow-hidden group cursor-pointer" onClick={() => {
           // Open gallery modal at the banner (first image)
@@ -275,8 +266,21 @@ export default function EventDetailsPage() {
 
         {/* Action Buttons */}
         <div className="max-w-6xl mx-auto px-6 py-4 flex gap-3 flex-wrap">
+          {!isOwner && <RSVPButton eventId={event.id} />}
+          
           {isOwner && (
             <>
+              <button
+                onClick={() => setViewMode(viewMode === 'public' ? 'manage' : 'public')}
+                className={`flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-colors ${
+                  viewMode === 'manage' 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'bg-zinc-800 hover:bg-zinc-700 text-white'
+                }`}
+              >
+                {viewMode === 'public' ? <LayoutDashboard size={18} /> : <Eye size={18} />}
+                {viewMode === 'public' ? 'Manage Event' : 'View Public Page'}
+              </button>
               <button
                 onClick={handleEdit}
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
@@ -334,6 +338,11 @@ export default function EventDetailsPage() {
             </div>
           </div>
         )}
+        {viewMode === 'manage' ? (
+          <div className="max-w-6xl mx-auto px-6 py-12">
+            <EventOrganizerView eventId={event.id} eventCapacity={event.max_attendees} />
+          </div>
+        ) : (
         <div className="max-w-6xl mx-auto px-6 py-12">
           {/* Info Grid */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
@@ -411,7 +420,7 @@ export default function EventDetailsPage() {
           )}
 
           {/* Map Section */}
-          {event.latitude && event.longitude && (
+          {event.venue_latitude && event.venue_longitude && (
             <EventMap event={event} nearbyEvents={[]} />
           )}
 
@@ -560,6 +569,7 @@ export default function EventDetailsPage() {
             </div>
           )}
         </div>
+        )}
       </div>
 
       {/* Gallery Modal */}
@@ -596,8 +606,7 @@ export default function EventDetailsPage() {
                 <div className="w-full h-full flex items-center justify-center p-4">
                   {(() => {
                     const videoUrl = allGalleryItems[galleryIndex].url;
-                    const youtubeRegex = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
-                    const match = videoUrl.match(youtubeRegex);
+                    const match = videoUrl.match(YOUTUBE_REGEX);
                     const videoId = match ? match[1] : null;
                     return videoId ? (
                       <iframe
@@ -748,6 +757,8 @@ export default function EventDetailsPage() {
       />
       
       <Toast />
+        </>
+      )}
     </div>
   );
 }

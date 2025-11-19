@@ -74,7 +74,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
     }
 
     try {
-      console.log("[EventChatbot] Loading chat history for event:", event.id);
       const response = await fetch(`/api/chat-history?eventId=${event.id}`, {
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -83,7 +82,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("[EventChatbot] Loaded", data.count, "messages from history");
         if (data.messages && data.messages.length > 0) {
           setMessages((prev) => {
             // Keep welcome message, add loaded history
@@ -107,12 +105,10 @@ export function EventChatbot({ event }: EventChatbotProps) {
 
   const saveChatMessage = async (message: ChatMessage) => {
     if (!session) {
-      console.log("[EventChatbot] No session, skipping save");
       return;
     }
 
     try {
-      console.log("[EventChatbot] Saving message:", message.type);
       const response = await fetch("/api/chat-history", {
         method: "POST",
         headers: {
@@ -139,9 +135,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
           errorData.code,
           errorData.details || errorData.error
         );
-      } else {
-        const data = await response.json();
-        console.log("[EventChatbot] Message saved, total messages:", data.totalMessages);
       }
     } catch (error) {
       console.error("[EventChatbot] Error saving chat message:", error);
@@ -152,7 +145,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
     if (!session) return;
 
     try {
-      console.log("[EventChatbot] Clearing chat history");
       const response = await fetch(`/api/chat-history?eventId=${event.id}`, {
         method: "DELETE",
         headers: {
@@ -171,7 +163,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
         ]);
         setRecommendations([]);
         setShowRecommendations(false);
-        console.log("[EventChatbot] History cleared successfully");
       } else {
         console.error("[EventChatbot] Clear failed:", response.status);
       }
@@ -259,30 +250,11 @@ export function EventChatbot({ event }: EventChatbotProps) {
       }
 
       // No local match, use AI fallback (optionally with web search context)
-      console.log("\n=== CHATBOT FLOW START ===");
-      console.log("[1] User Question:", input);
-      console.log("[2] Checking: Is web search enabled?", enableWebSearch ? "YES" : "NO");
-
       let webContext = "";
       if (enableWebSearch) {
-        console.log("[3] YES → Calling searchWeb() function");
-        console.log("[3.1] Sending API request to /api/web-search");
         webContext = (await searchWeb(input)) || "";
-        
-        if (webContext) {
-          console.log("[4] Got summary from Gemini API:");
-          console.log("[4.1] Web context length:", webContext.length);
-          console.log("[4.2] Web context preview:", webContext.substring(0, 200));
-        } else {
-          console.log("[4] Web search returned no results");
-        }
-      } else {
-        console.log("[3] NO → Skipping web search");
       }
       
-      console.log("[5] Adding web context to system prompt");
-      console.log("Event context length:", eventContextRef.current.length);
-
       // Build conversation history (last 5 messages for context)
       const conversationHistory = messages
         .filter((m) => m.type !== "error")
@@ -291,9 +263,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
           role: m.type === "user" ? "user" : "model",
           content: m.content,
         }));
-
-      console.log("[6] Sending to Llama3.1 with web results");
-      console.log("[6.1] Payload: { question, eventContext, webContext, conversationHistory }");
       
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -316,10 +285,6 @@ export function EventChatbot({ event }: EventChatbotProps) {
       }
 
       const data = await response.json();
-      console.log("[7] Llama3.1 answered using web context");
-      console.log("[7.1] Response length:", data.answer.length);
-      console.log("[7.2] Response preview:", data.answer.substring(0, 200));
-      console.log("=== CHATBOT FLOW END ===");
 
       if (data.error) {
         console.error("API returned error in response:", data.error, data.details);

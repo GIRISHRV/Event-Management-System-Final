@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { LogOut, Plus, Calendar, Globe, Loader2 } from "lucide-react";
+import { LogOut, Plus, Calendar, Globe, Loader2, Ticket } from "lucide-react";
 import { EnhancedEventForm } from "@/components/EnhancedEventForm";
 import { EventList } from "@/components/EventList";
 import { PublicEventList } from "@/components/PublicEventList";
@@ -14,16 +14,19 @@ import { logError, getErrorMessage } from "@/lib/error-handler";
 import Squares from "@/components/Squares";
 import PillNav from "@/components/PillNav";
 import { useToast } from "@/components/Toast";
+import { LoadingScreen } from "@/components/LoadingScreen";
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
   const { session, userProfile, loading, signOut } = useAuth();
   const { error: toastError, success: toastSuccess, Toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
+  const [bookedEvents, setBookedEvents] = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
+  const [bookedEventsLoading, setBookedEventsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'my-events' | 'discover'>('my-events');
+  const [activeTab, setActiveTab] = useState<'my-events' | 'attending' | 'discover'>('my-events');
 
   // Protect route - redirect if not customer
   // Only redirect if: loading is done AND (no session OR not a customer)
@@ -94,9 +97,56 @@ export default function CustomerDashboardPage() {
     }
   };
 
+  const fetchBookedEvents = async () => {
+    if (!session?.user) return;
+
+    setBookedEventsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select(`
+          event_id,
+          events (
+            *
+          )
+        `)
+        .eq("user_id", session.user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      // Extract events from the joined query
+      const mappedEvents = (data || [])
+        .map(booking => booking.events)
+        .filter(event => event !== null) as unknown as Event[];
+
+      // Ensure defaults
+      const eventsWithDefaults = mappedEvents.map(event => ({
+        ...event,
+        visibility_type: event.visibility_type || 'public',
+        event_status: event.event_status || 'upcoming',
+        max_attendees: event.max_attendees || undefined,
+        schedules: event.schedules || [],
+        performers: event.performers || [],
+        faqs: event.faqs || [],
+        gallery_images: event.gallery_images || [],
+        gallery_videos: event.gallery_videos || [],
+        tags: event.tags || [],
+      }));
+
+      setBookedEvents(eventsWithDefaults);
+    } catch (err) {
+      logError("fetchBookedEvents", err);
+      toastError("Failed to load booked events");
+    } finally {
+      setBookedEventsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (session?.user) {
       void fetchEvents();
+      void fetchBookedEvents();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.user?.id]);
@@ -177,42 +227,16 @@ export default function CustomerDashboardPage() {
     setShowForm(false);
   };
 
-  // Show loading screen while checking auth
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
-          <p className="text-white text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If session exists but profile still loading, show loading
-  if (session && !userProfile) {
-    return (
-      <div className="min-h-screen bg-white dark:bg-zinc-950 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
-          <p className="text-gray-800 dark:text-white text-sm">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If not authenticated or not a customer, return null (redirect happens in useEffect)
-  if (!session || userProfile?.role !== "customer") {
-    return null;
-  }
-
   const navItems = [
     { label: 'Home', href: '/' },
-    { label: 'Dashboard', href: '/customer-dashboard' }
+    { label: 'Dashboard', href: '/customer-dashboard' },
+    { label: 'Profile', href: '/profile' }
   ];
 
   return (
     <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
+      <LoadingScreen message="Authenticating..." isLoading={loading || (!!session && !userProfile)} />
+      
       {/* Animated Background */}
       <div className="fixed inset-0 z-0">
         <Squares
@@ -224,124 +248,146 @@ export default function CustomerDashboardPage() {
         />
       </div>
       
-      {/* Navigation */}
-      <PillNav
-        items={navItems}
-        activeHref="/customer-dashboard"
-        userEmail={session?.user?.email}
-        onSignOut={handleSignOut}
-        showAuth={true}
-      />
+      {session && userProfile?.role === "customer" && (
+        <>
+          {/* Navigation */}
+          <PillNav
+            items={navItems}
+            activeHref="/customer-dashboard"
+            userEmail={session?.user?.email}
+            onSignOut={handleSignOut}
+            showAuth={true}
+          />
 
-      {/* Content */}
-      <div className="relative z-20 max-w-7xl mx-auto px-6 py-12 pt-24">
-        {/* Header Section */}
-        <div className="flex items-center justify-between mb-8 bg-zinc-950/90 backdrop-blur-sm rounded-xl p-6 border border-zinc-700">
-          <div>
-            <h1 className="text-4xl font-bold text-white mb-2">
-              {activeTab === 'my-events' ? 'My Events' : 'Discover Events'}
-            </h1>
-            <p className="text-gray-400">
-              {activeTab === 'my-events' 
-                ? 'Create and manage your events'
-                : 'Discover and RSVP to public events'
-              }
-            </p>
-          </div>
-          {activeTab === 'my-events' && (
-            <button
-              onClick={() => {
-                setShowForm(true);
-              }}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2"
-            >
-              <Plus size={20} />
-              Create Event
-            </button>
-          )}
-        </div>
+          {/* Content */}
+          <div className="relative z-20 max-w-7xl mx-auto px-6 py-12 pt-24">
+            {/* Header Section */}
+            <div className="flex items-center justify-between mb-8 bg-zinc-950/90 backdrop-blur-sm rounded-xl p-6 border border-zinc-700">
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2">
+                  {activeTab === 'my-events' ? 'My Events' : activeTab === 'attending' ? 'Attending' : 'Discover Events'}
+                </h1>
+                <p className="text-gray-400">
+                  {activeTab === 'my-events' 
+                    ? 'Create and manage your events'
+                    : activeTab === 'attending'
+                    ? 'Events you have RSVP\'d to'
+                    : 'Discover and RSVP to public events'
+                  }
+                </p>
+              </div>
+              {activeTab === 'my-events' && (
+                <button
+                  onClick={() => {
+                    setShowForm(true);
+                  }}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2"
+                >
+                  <Plus size={20} />
+                  Create Event
+                </button>
+              )}
+            </div>
 
-        {/* Tab Navigation */}
-        <div className="flex space-x-1 mb-8 bg-zinc-800/60 backdrop-blur-md rounded-xl p-1 border border-zinc-700/50 shadow-lg">
-          <button
-            onClick={() => setActiveTab('my-events')}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
-              activeTab === 'my-events'
-                ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/30'
-            }`}
-          >
-            <Calendar size={18} />
-            My Events
-          </button>
-          <button
-            onClick={() => setActiveTab('discover')}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
-              activeTab === 'discover'
-                ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
-                : 'text-zinc-400 hover:text-white hover:bg-white/30'
-            }`}
-          >
-            <Globe size={18} />
-            Discover Events
-          </button>
-        </div>
+            {/* Tab Navigation */}
+            <div className="flex space-x-1 mb-8 bg-zinc-800/60 backdrop-blur-md rounded-xl p-1 border border-zinc-700/50 shadow-lg">
+              <button
+                onClick={() => setActiveTab('my-events')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+                  activeTab === 'my-events'
+                    ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/30'
+                }`}
+              >
+                <Calendar size={18} />
+                My Events
+              </button>
+              <button
+                onClick={() => setActiveTab('attending')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+                  activeTab === 'attending'
+                    ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/30'
+                }`}
+              >
+                <Ticket size={18} />
+                Attending
+              </button>
+              <button
+                onClick={() => setActiveTab('discover')}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+                  activeTab === 'discover'
+                    ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/30'
+                }`}
+              >
+                <Globe size={18} />
+                Discover Events
+              </button>
+            </div>
 
-        {/* Tab Content */}
-        <div className="mb-8 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-zinc-700 p-6">
-          {activeTab === 'my-events' ? (
-            <EventList
-              events={events}
-              isLoading={eventsLoading}
-            />
-          ) : (
-            <PublicEventList />
-          )}
-        </div>
+            {/* Tab Content */}
+            <div className="mb-8 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-zinc-700 p-6">
+              {activeTab === 'my-events' ? (
+                <EventList
+                  events={events}
+                  isLoading={eventsLoading}
+                />
+              ) : activeTab === 'attending' ? (
+                <EventList
+                  events={bookedEvents}
+                  isLoading={bookedEventsLoading}
+                />
+              ) : (
+                <PublicEventList />
+              )}
+            </div>
 
-        {/* Account Information Card */}
-        <div className="p-6 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50/90 dark:bg-zinc-900/70 backdrop-blur-sm">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-            Account Information
-          </h2>
-          <div className="space-y-3 text-gray-600 dark:text-zinc-400">
-            <p>
-              <span className="text-gray-900 dark:text-white font-medium">Email:</span>{" "}
-              {session.user.email}
-            </p>
-            <p>
-              <span className="text-gray-900 dark:text-white font-medium">Account Type:</span>{" "}
-              <span className="text-green-700 dark:text-green-500">Customer</span>
-            </p>
-            <p>
-              <span className="text-gray-900 dark:text-white font-medium">Total Events:</span>{" "}
-              <span className="text-gray-900 dark:text-white">{events.length}</span>
-            </p>
-            <p>
-              <span className="text-gray-900 dark:text-white font-medium">User ID:</span>{" "}
-              <code className="text-xs bg-gray-200 dark:bg-black/50 px-2 py-1 rounded text-gray-900 dark:text-gray-400">
-                {session.user.id}
-              </code>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Event Form Modal */}
-      {showForm && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-          <div className="bg-zinc-950 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl">
-            <div className="flex-1 overflow-y-auto p-6">
-              <EnhancedEventForm
-                event={undefined}
-                onSubmit={handleCreateEvent}
-                onClose={handleCloseForm}
-                isLoading={formLoading}
-                userEmail={session.user.email || ""}
-              />
+            {/* Account Information Card */}
+            <div className="p-6 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50/90 dark:bg-zinc-900/70 backdrop-blur-sm">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+                Account Information
+              </h2>
+              <div className="space-y-3 text-gray-600 dark:text-zinc-400">
+                <p>
+                  <span className="text-gray-900 dark:text-white font-medium">Email:</span>{" "}
+                  {session.user.email}
+                </p>
+                <p>
+                  <span className="text-gray-900 dark:text-white font-medium">Account Type:</span>{" "}
+                  <span className="text-green-700 dark:text-green-500">Customer</span>
+                </p>
+                <p>
+                  <span className="text-gray-900 dark:text-white font-medium">Total Events:</span>{" "}
+                  <span className="text-gray-900 dark:text-white">{events.length}</span>
+                </p>
+                <p>
+                  <span className="text-gray-900 dark:text-white font-medium">User ID:</span>{" "}
+                  <code className="text-xs bg-gray-200 dark:bg-black/50 px-2 py-1 rounded text-gray-900 dark:text-gray-400">
+                    {session.user.id}
+                  </code>
+                </p>
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* Event Form Modal */}
+          {showForm && (
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+              <div className="bg-zinc-950 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl">
+                <div className="flex-1 overflow-y-auto p-6">
+                  <EnhancedEventForm
+                    event={undefined}
+                    onSubmit={handleCreateEvent}
+                    onClose={handleCloseForm}
+                    isLoading={formLoading}
+                    userEmail={session.user.email || ""}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
       )}
       
       <Toast />

@@ -1,11 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Globe, Calendar, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { getPublicEvents } from "@/lib/events";
 import type { EventWithAttendeeInfo } from "@/lib/supabase-types";
+import { SkeletonCard } from "./SkeletonCard";
 
 interface PublicEventListProps {
   // No props needed currently
@@ -21,6 +24,18 @@ export function PublicEventList({}: PublicEventListProps) {
   const [dateFilter, setDateFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [uniqueLocations, setUniqueLocations] = useState<string[]>([]);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    if (!loading && events.length > 0) {
+      gsap.fromTo(
+        ".public-event-card",
+        { opacity: 0, y: 20 },
+        { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
+      );
+    }
+  }, { dependencies: [loading, currentPage, events] }); // Re-run on page change
 
   useEffect(() => {
     fetchEvents();
@@ -44,7 +59,6 @@ export function PublicEventList({}: PublicEventListProps) {
       setCurrentPage(1); // Reset pagination
     } catch (error) {
       console.error("Error fetching public events:", error);
-      console.log("ℹ️ Public events require database migration - showing empty list for now");
       setEvents([]);
     } finally {
       setLoading(false);
@@ -91,14 +105,28 @@ export function PublicEventList({}: PublicEventListProps) {
 
   if (loading) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-gray-600 dark:text-zinc-400">Loading public events...</p>
+      <div className="space-y-6">
+        {/* Search Skeleton */}
+        <div className="space-y-4 animate-pulse">
+          <div className="w-full h-10 bg-zinc-800/60 rounded-lg" />
+          <div className="flex gap-4">
+            <div className="w-32 h-10 bg-zinc-800/60 rounded-lg" />
+            <div className="w-32 h-10 bg-zinc-800/60 rounded-lg" />
+          </div>
+        </div>
+        
+        {/* Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={containerRef}>
       {/* Search & Filters */}
       <div className="space-y-4">
         {/* Search Bar */}
@@ -171,7 +199,7 @@ export function PublicEventList({}: PublicEventListProps) {
               <Link
                 key={event.id}
                 href={`/event/${event.id}`}
-                className="group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
+                className="public-event-card group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block opacity-0"
                 style={{ aspectRatio: '3/4' }}
               >
                 {/* Background Image */}
