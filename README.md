@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Event Management System
 
-## Getting Started
+A modern, full-stack event management platform built with Next.js, Supabase, and React. Organizers can create, manage, and analyze events, while attendees can RSVP, join waitlists, and interact with event content.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## Features
+
+### For Attendees
+- **Browse Events:** View public and private events with rich details, images, and schedules.
+- **RSVP & Waitlist:** Request to join events. Organizers approve or reject requests.
+- **Profile Management:** Manage your user profile and see your event history.
+- **Event Chatbot:** Interact with an AI-powered chatbot for event info (if enabled).
+
+### For Organizers
+- **Event Creation:** Create and edit events with images, schedules, performers, and FAQs.
+- **Guest Management:** Approve, reject, or waitlist RSVPs. Export guest lists.
+- **Analytics Dashboard:** View stats on attendance, engagement, and more.
+- **Access Control:** Manage public, private, and invite-only events.
+
+### General
+- **Mobile Responsive:** Works great on all devices.
+- **Secure:** Uses Supabase Auth and Row Level Security (RLS).
+- **Extensible:** Easily add features like email notifications, calendar integration, and more.
+
+---
+
+## Tech Stack
+- **Frontend:** Next.js 14+, React, Tailwind CSS
+- **Backend:** Supabase (Postgres, Auth, Storage)
+- **State Management:** React Context, Hooks
+- **Other:** Recharts (analytics), Lucide Icons, OpenAI/Ollama (optional chatbot)
+
+---
+
+
+## Folder Structure
+```
+├── src/
+│   ├── app/                # Next.js app routes (pages, API, layouts)
+│   ├── components/         # Reusable React components
+│   ├── context/            # React context providers
+│   ├── hooks/              # Custom React hooks
+│   ├── lib/                # Supabase client, utilities, types
+│   └── ...
+├── public/                 # Static assets
+├── supabase/               # SQL migrations, policies
+├── types/                  # TypeScript type declarations
+├── package.json
+├── README.md
+└── ...
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Contributing
+Pull requests are welcome! For major changes, please open an issue first to discuss what you would like to change.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## License
+[MIT](LICENSE)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Credits
+- Built by GIRISHRV and contributors.
+- Uses [Supabase](https://supabase.com/), [Next.js](https://nextjs.org/), [Recharts](https://recharts.org/), [Lucide Icons](https://lucide.dev/), and more.
