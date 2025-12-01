@@ -184,7 +184,30 @@ export default function CustomerDashboardPage() {
           ...basicEventData,
           visibility_type: data.visibility_type || 'private',
           event_status: data.event_status || 'upcoming',
-          max_attendees: data.max_attendees || null
+          max_attendees: data.max_attendees || null,
+          
+          // Venue and location
+          venue_name: data.venue_name,
+          venue_address: data.venue_address,
+          venue_city: data.venue_city,
+          venue_landmark: data.venue_landmark,
+          venue_type: data.venue_type,
+          venue_latitude: data.venue_latitude,
+          venue_longitude: data.venue_longitude,
+          google_maps_url: data.google_maps_url,
+          
+          // Organizer info
+          organizer_name: data.organizer_name,
+          organizer_contact: data.organizer_contact,
+          organizer_email: data.organizer_email,
+          
+          // JSON arrays
+          schedules: data.schedules,
+          performers: data.performers,
+          gallery_images: data.gallery_images,
+          gallery_videos: data.gallery_videos,
+          faqs: data.faqs,
+          tags: data.tags
         };
       } else {
         // New columns don't exist, use basic data

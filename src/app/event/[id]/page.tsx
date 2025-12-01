@@ -42,20 +42,25 @@ export default function EventDetailsPage() {
   const fetchEvent = useCallback(async () => {
     try {
       setEventLoading(true);
+      console.log("[DEBUG] Fetching event with ID:", eventId);
       const { data, error } = await supabase
         .from("events")
         .select("*")
         .eq("id", eventId)
         .single();
+      console.log("[DEBUG] Supabase event fetch response:", { data, error });
 
       if (error) {
+        console.error("[DEBUG] Supabase error:", error);
         setError("Event not found");
         return;
       }
 
       // Check access using current session at time of fetch
       const { data: { session: currentSession } } = await supabase.auth.getSession();
+      console.log("[DEBUG] Current session:", currentSession);
       if (data.visibility_type === 'private' && (!currentSession || data.user_email !== currentSession.user.email)) {
+        console.warn("[DEBUG] Access denied for private event:", { event: data, session: currentSession });
         setError("This is a private event");
         return;
       }
@@ -95,8 +100,8 @@ export default function EventDetailsPage() {
       }
       
       setAllGalleryItems(items);
-    } catch {
-      // console.error("Error:", err);
+    } catch (err) {
+      console.error("[DEBUG] Error in fetchEvent:", err);
       setError("Failed to load event");
     } finally {
       setEventLoading(false);
