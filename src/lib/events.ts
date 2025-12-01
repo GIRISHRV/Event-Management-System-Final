@@ -12,8 +12,7 @@ export const getPublicEvents = async (): Promise<Event[]> => {
 
     if (error) throw error;
     return data || [];
-  } catch (error) {
-    // console.error("Error fetching public events:", error);
+  } catch {
     // Return empty array on any error
     return [];
   }
@@ -30,8 +29,7 @@ export const getMyAccessibleEvents = async (userEmail: string): Promise<Event[]>
 
     if (error) throw error;
     return data || [];
-  } catch (error) {
-    // console.error("Error fetching accessible events:", error);
+  } catch {
     return [];
   }
 };
@@ -68,7 +66,6 @@ export const sendEventInvitation = async (eventId: string, email: string, invite
     if (error) throw error;
     return newInvitation;
   } catch (error) {
-    // console.error("Error sending invitation:", error);
     throw error;
   }
 };
@@ -98,7 +95,6 @@ export const respondToInvitation = async (eventId: string, email: string, status
     if (error) throw error;
     return { success: true };
   } catch (error) {
-    // console.error("Error responding to invitation:", error);
     throw error;
   }
 };
@@ -120,7 +116,6 @@ export const getMyInvitations = async (userEmail: string): Promise<Event[]> => {
 
     return invitedEvents;
   } catch (error) {
-    // console.error("Error fetching invitations:", error);
     throw error;
   }
 };

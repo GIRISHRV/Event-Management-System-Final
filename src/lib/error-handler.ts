@@ -48,26 +48,14 @@ export function getErrorMessage(error: unknown): string {
   }
 }
 
-export function showErrorAlert(error: unknown): void {
-  const message = getErrorMessage(error);
-  console.error("showErrorAlert called (deprecated):", message);
-  // alert(message); // Deprecated: Use useToast hook instead
-}
-
+/**
+ * Log error details in development mode only
+ */
 export function logError(context: string, error: unknown): void {
-  console.group(`🚨 Error in ${context}`);
-  console.error("Full error object:", error);
-  console.error("Error type:", typeof error);
-  
-  if (error && typeof error === 'object') {
-    console.error("Error keys:", Object.keys(error));
-    const errorObj = error as Record<string, unknown>;
-    console.error("Error code:", errorObj.code);
-    console.error("Error message:", errorObj.message);
-    console.error("Error details:", errorObj.details);
-    console.error("Error hint:", errorObj.hint);
+  if (process.env.NODE_ENV === 'development') {
+    console.group(`🚨 Error in ${context}`);
+    console.error("Error:", error);
+    console.error("User-friendly message:", getErrorMessage(error));
+    console.groupEnd();
   }
-  
-  console.error("User-friendly message:", getErrorMessage(error));
-  console.groupEnd();
 }

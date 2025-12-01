@@ -14,6 +14,7 @@
     "@googlemaps/js-api-loader": "^2.0.2",
     "@googlemaps/react-wrapper": "^1.2.0",
     "@gsap/react": "^2.1.2",
+    "@hookform/resolvers": "^5.2.2",
     "@supabase/supabase-js": "^2.81.1",
     "@types/leaflet": "^1.9.21",
     "class-variance-authority": "^0.7.1",
@@ -24,8 +25,11 @@
     "next": "16.0.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
+    "react-hook-form": "^7.67.0",
     "react-leaflet": "^5.0.0",
-    "tailwind-merge": "^3.4.0"
+    "swr": "^2.3.7",
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.1.13"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

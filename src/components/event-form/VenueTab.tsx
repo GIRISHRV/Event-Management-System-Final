@@ -1,7 +1,8 @@
 import React from 'react';
 import dynamic from "next/dynamic";
 import { MapPin } from "lucide-react";
-import { EventFormData } from "@/types/events";
+import { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form';
+import { EventFormSchema } from '@/lib/schemas';
 import { VENUE_TYPES } from "@/lib/constants";
 
 const OpenMapLocationPicker = dynamic(
@@ -17,16 +18,21 @@ const OpenMapLocationPicker = dynamic(
 );
 
 interface VenueTabProps {
-  formData: EventFormData;
-  updateFormData: (updates: Partial<EventFormData>) => void;
+  register: UseFormRegister<EventFormSchema>;
+  errors: FieldErrors<EventFormSchema>;
+  watch: UseFormWatch<EventFormSchema>;
   onLocationSelect: (location: { lat: number; lng: number }) => void;
 }
 
 export const VenueTab: React.FC<VenueTabProps> = ({
-  formData,
-  updateFormData,
+  register,
+  errors,
+  watch,
   onLocationSelect,
 }) => {
+  const latitude = watch('latitude');
+  const longitude = watch('longitude');
+
   return (
     <div className="space-y-6">
       <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-4">
@@ -38,13 +44,14 @@ export const VenueTab: React.FC<VenueTabProps> = ({
       
       <OpenMapLocationPicker
         onLocationSelect={onLocationSelect}
-        initialLocation={formData.latitude && formData.longitude ? { lat: formData.latitude, lng: formData.longitude } : undefined}
+        initialLocation={latitude && longitude ? { lat: latitude, lng: longitude } : undefined}
       />
+      {errors.latitude && <p className="text-red-500 text-xs mt-1">{errors.latitude.message}</p>}
 
-      {formData.latitude && formData.longitude && (
+      {latitude && longitude && (
         <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
           <p className="text-sm text-green-400">
-            ✓ Location selected: {formData.latitude?.toFixed(6)}, {formData.longitude?.toFixed(6)}
+            ✓ Location selected: {latitude?.toFixed(6)}, {longitude?.toFixed(6)}
           </p>
         </div>
       )}
@@ -57,8 +64,7 @@ export const VenueTab: React.FC<VenueTabProps> = ({
           <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <select
             id="venueType"
-            value={formData.venueType}
-                onChange={(e) => updateFormData({ venueType: e.target.value as 'indoor' | 'outdoor' | 'hybrid' })}
+            {...register('venueType')}
             className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
           >
             <option value={VENUE_TYPES.INDOOR}>Indoor</option>

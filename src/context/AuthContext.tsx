@@ -35,8 +35,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (profile) {
           setUserProfile(profile as UserProfile);
         }
-      } catch (err) {
-        // console.error("Profile fetch error:", err);
+      } catch {
+        // Profile fetch failed silently - user can still use the app
       }
     };
 
@@ -51,8 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Fetch profile in background (don't wait)
           void fetchProfile(storedSession.user.id);
         }
-      } catch (err) {
-        // console.error("Auth init error:", err);
+      } catch {
+        // Auth init failed silently - user will be redirected to login
       } finally {
         // Always set loading to false immediately
         setLoading(false);

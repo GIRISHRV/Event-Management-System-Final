@@ -1,10 +1,11 @@
 import React from 'react';
 import { Plus, Trash2, Upload } from 'lucide-react';
-import { EventFormData } from '@/types/events';
+import { UseFormWatch, UseFormSetValue } from 'react-hook-form';
+import { EventFormSchema } from '@/lib/schemas';
 
 interface GalleryTabProps {
-  formData: EventFormData;
-  updateFormData: (updates: Partial<EventFormData>) => void;
+  watch: UseFormWatch<EventFormSchema>;
+  setValue: UseFormSetValue<EventFormSchema>;
   uploadingGalleryType: 'image' | 'video' | null;
   onGalleryImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onGalleryVideoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -13,14 +14,37 @@ interface GalleryTabProps {
 }
 
 export function GalleryTab({
-  formData,
-  updateFormData,
+  watch,
+  setValue,
   uploadingGalleryType,
   onGalleryImageUpload,
   onGalleryVideoUpload,
   galleryImageInputRef,
   galleryVideoInputRef,
 }: GalleryTabProps) {
+  const galleryImages = watch('galleryImages') || [];
+  const galleryVideos = watch('galleryVideos') || [];
+
+  const addImage = (url: string) => {
+    if (url.trim()) {
+      setValue('galleryImages', [...galleryImages, url.trim()], { shouldValidate: true, shouldDirty: true });
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setValue('galleryImages', galleryImages.filter((_, i) => i !== index), { shouldValidate: true, shouldDirty: true });
+  };
+
+  const addVideo = (url: string) => {
+    if (url.trim()) {
+      setValue('galleryVideos', [...galleryVideos, url.trim()], { shouldValidate: true, shouldDirty: true });
+    }
+  };
+
+  const removeVideo = (index: number) => {
+    setValue('galleryVideos', galleryVideos.filter((_, i) => i !== index), { shouldValidate: true, shouldDirty: true });
+  };
+
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-medium text-white">Event Gallery</h3>
@@ -41,10 +65,8 @@ export function GalleryTab({
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   const input = e.target as HTMLInputElement;
-                  if (input.value.trim()) {
-                    updateFormData({ galleryImages: [...formData.galleryImages, input.value.trim()] });
-                    input.value = '';
-                  }
+                  addImage(input.value);
+                  input.value = '';
                 }
               }}
             />
@@ -52,10 +74,8 @@ export function GalleryTab({
               type="button"
               onClick={(e) => {
                 const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input') as HTMLInputElement;
-                if (input?.value.trim()) {
-                  updateFormData({ galleryImages: [...formData.galleryImages, input.value.trim()] });
-                  input.value = '';
-                }
+                addImage(input?.value || '');
+                if (input) input.value = '';
               }}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
             >
@@ -79,9 +99,9 @@ export function GalleryTab({
               className="hidden"
             />
           </div>
-          {formData.galleryImages.length > 0 && (
+          {galleryImages.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {formData.galleryImages.map((image, index) => {
+              {galleryImages.map((image, index) => {
                 return (
                   <div key={index} className="relative group">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -96,7 +116,7 @@ export function GalleryTab({
                     />
                     <button
                       type="button"
-                      onClick={() => updateFormData({ galleryImages: formData.galleryImages.filter((_, i) => i !== index) })}
+                      onClick={() => removeImage(index)}
                       className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <Trash2 size={14} />
@@ -119,16 +139,14 @@ export function GalleryTab({
             <input
               type="url"
               aria-label="Add video URL"
-              placeholder="Add video URL (YouTube, Vimeo, etc.)"
+              placeholder="Add video URL (e.g., https://example.com/video.mp4)"
               className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
               onKeyPress={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   const input = e.target as HTMLInputElement;
-                  if (input.value.trim()) {
-                    updateFormData({ galleryVideos: [...formData.galleryVideos, input.value.trim()] });
-                    input.value = '';
-                  }
+                  addVideo(input.value);
+                  input.value = '';
                 }
               }}
             />
@@ -136,10 +154,8 @@ export function GalleryTab({
               type="button"
               onClick={(e) => {
                 const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input') as HTMLInputElement;
-                if (input?.value.trim()) {
-                  updateFormData({ galleryVideos: [...formData.galleryVideos, input.value.trim()] });
-                  input.value = '';
-                }
+                addVideo(input?.value || '');
+                if (input) input.value = '';
               }}
               className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center gap-2 shrink-0"
             >
@@ -163,17 +179,17 @@ export function GalleryTab({
               className="hidden"
             />
           </div>
-          {formData.galleryVideos.length > 0 && (
+          {galleryVideos.length > 0 && (
             <div className="space-y-2">
-              {formData.galleryVideos.map((video, index) => (
-                <div key={index} className="flex items-center justify-between bg-zinc-800 px-3 py-2 rounded-lg">
-                  <span className="text-white truncate text-sm">{video}</span>
+              {galleryVideos.map((video, index) => (
+                <div key={index} className="flex items-center gap-2 bg-zinc-800 p-2 rounded-lg border border-zinc-700">
+                  <div className="flex-1 truncate text-sm text-gray-300">{video}</div>
                   <button
                     type="button"
-                    onClick={() => updateFormData({ galleryVideos: formData.galleryVideos.filter((_, i) => i !== index) })}
-                    className="text-red-400 hover:text-red-300 p-1 shrink-0"
+                    onClick={() => removeVideo(index)}
+                    className="text-red-400 hover:text-red-300 p-1"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               ))}

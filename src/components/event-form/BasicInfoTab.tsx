@@ -1,24 +1,29 @@
 import React from 'react';
 import Image from 'next/image';
 import { Upload, Globe, Activity } from 'lucide-react';
-import { EventFormData } from '@/types/events';
+import { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form';
+import { EventFormSchema } from '@/lib/schemas';
 import { VISIBILITY_TYPES, EVENT_STATUS } from '@/lib/constants';
 
 interface BasicInfoTabProps {
-  formData: EventFormData;
-  updateFormData: (updates: Partial<EventFormData>) => void;
+  register: UseFormRegister<EventFormSchema>;
+  errors: FieldErrors<EventFormSchema>;
+  watch: UseFormWatch<EventFormSchema>;
   isUploading: boolean;
   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   fileInputRef: React.RefObject<HTMLInputElement | null>;
 }
 
 export function BasicInfoTab({
-  formData,
-  updateFormData,
+  register,
+  errors,
+  watch,
   isUploading,
   onImageUpload,
   fileInputRef,
 }: BasicInfoTabProps) {
+  const eventBannerUrl = watch('eventBannerUrl');
+
   return (
     <div className="space-y-6">
       {/* Event Name */}
@@ -29,12 +34,11 @@ export function BasicInfoTab({
         <input
           id="eventName"
           type="text"
-          value={formData.eventName}
-          onChange={(e) => updateFormData({ eventName: e.target.value })}
-          required
-          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+          {...register('eventName')}
+          className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.eventName ? 'border-red-500' : 'border-zinc-600'}`}
           placeholder="Enter event name"
         />
+        {errors.eventName && <p className="text-red-500 text-xs mt-1">{errors.eventName.message}</p>}
       </div>
 
       {/* Event Banner */}
@@ -43,10 +47,10 @@ export function BasicInfoTab({
           Event Banner
         </label>
         <div className="space-y-3">
-          {formData.eventBannerUrl && (
+          {eventBannerUrl && (
             <div className="relative w-full h-40">
               <Image
-                src={formData.eventBannerUrl}
+                src={eventBannerUrl}
                 alt="Event banner"
                 fill
                 className="object-cover rounded-lg"
@@ -58,8 +62,7 @@ export function BasicInfoTab({
               type="url"
               aria-label="Event Banner URL"
               placeholder="Or paste banner URL here"
-              value={formData.eventBannerUrl}
-              onChange={(e) => updateFormData({ eventBannerUrl: e.target.value })}
+              {...register('eventBannerUrl')}
               className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
             />
             <button
@@ -95,12 +98,12 @@ export function BasicInfoTab({
         </label>
         <textarea
           id="eventDescription"
-          value={formData.eventDescription}
-          onChange={(e) => updateFormData({ eventDescription: e.target.value })}
+          {...register('eventDescription')}
           rows={4}
-          className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+          className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.eventDescription ? 'border-red-500' : 'border-zinc-600'}`}
           placeholder="Describe your event in detail..."
         />
+        {errors.eventDescription && <p className="text-red-500 text-xs mt-1">{errors.eventDescription.message}</p>}
       </div>
 
       {/* Date & Time */}
@@ -111,11 +114,10 @@ export function BasicInfoTab({
           </label>
           <input
             type="date"
-            value={formData.startDate}
-            onChange={(e) => updateFormData({ startDate: e.target.value })}
-            required
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+            {...register('startDate')}
+            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.startDate ? 'border-red-500' : 'border-zinc-600'}`}
           />
+          {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -123,11 +125,10 @@ export function BasicInfoTab({
           </label>
           <input
             type="time"
-            value={formData.startTime}
-            onChange={(e) => updateFormData({ startTime: e.target.value })}
-            required
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+            {...register('startTime')}
+            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.startTime ? 'border-red-500' : 'border-zinc-600'}`}
           />
+          {errors.startTime && <p className="text-red-500 text-xs mt-1">{errors.startTime.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -135,11 +136,10 @@ export function BasicInfoTab({
           </label>
           <input
             type="date"
-            value={formData.endDate}
-            onChange={(e) => updateFormData({ endDate: e.target.value })}
-            required
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+            {...register('endDate')}
+            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.endDate ? 'border-red-500' : 'border-zinc-600'}`}
           />
+          {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -147,11 +147,10 @@ export function BasicInfoTab({
           </label>
           <input
             type="time"
-            value={formData.endTime}
-            onChange={(e) => updateFormData({ endTime: e.target.value })}
-            required
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white focus:outline-none focus:border-green-500"
+            {...register('endTime')}
+            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.endTime ? 'border-red-500' : 'border-zinc-600'}`}
           />
+          {errors.endTime && <p className="text-red-500 text-xs mt-1">{errors.endTime.message}</p>}
         </div>
       </div>
 
@@ -163,11 +162,11 @@ export function BasicInfoTab({
           </label>
           <input
             type="text"
-            value={formData.organizerName}
-            onChange={(e) => updateFormData({ organizerName: e.target.value })}
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+            {...register('organizerName')}
+            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.organizerName ? 'border-red-500' : 'border-zinc-600'}`}
             placeholder="Event organizer name"
           />
+          {errors.organizerName && <p className="text-red-500 text-xs mt-1">{errors.organizerName.message}</p>}
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -175,11 +174,11 @@ export function BasicInfoTab({
           </label>
           <input
             type="text"
-            value={formData.organizerContact}
-            onChange={(e) => updateFormData({ organizerContact: e.target.value })}
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
+            {...register('organizerContact')}
+            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.organizerContact ? 'border-red-500' : 'border-zinc-600'}`}
             placeholder="Email or phone number"
           />
+          {errors.organizerContact && <p className="text-red-500 text-xs mt-1">{errors.organizerContact.message}</p>}
         </div>
       </div>
 
@@ -192,8 +191,7 @@ export function BasicInfoTab({
           <div className="relative">
             <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <select
-              value={formData.visibilityType}
-              onChange={(e) => updateFormData({ visibilityType: e.target.value as 'public' | 'private' | 'whitelist' })}
+              {...register('visibilityType')}
               className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
             >
               <option value={VISIBILITY_TYPES.PUBLIC}>Public</option>
@@ -208,8 +206,7 @@ export function BasicInfoTab({
           </label>
           <input
             type="number"
-            value={formData.maxAttendees}
-            onChange={(e) => updateFormData({ maxAttendees: e.target.value })}
+            {...register('maxAttendees')}
             className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
             placeholder="Leave empty for unlimited"
           />
@@ -221,8 +218,7 @@ export function BasicInfoTab({
           <div className="relative">
             <Activity className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <select
-              value={formData.eventStatus}
-              onChange={(e) => updateFormData({ eventStatus: e.target.value as 'upcoming' | 'ongoing' | 'completed' | 'cancelled' })}
+              {...register('eventStatus')}
               className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
             >
               <option value={EVENT_STATUS.UPCOMING}>Upcoming</option>

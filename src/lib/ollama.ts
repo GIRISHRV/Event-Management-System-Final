@@ -50,16 +50,14 @@ export async function callOllama(
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      // console.error(`Ollama API error (${response.status}):`, error);
-      throw new Error(`Ollama API failed: ${response.status} ${error}`);
+      const errorText = await response.text();
+      throw new Error(`Ollama API failed: ${response.status} ${errorText}`);
     }
 
     const data = (await response.json()) as OllamaResponse;
 
     return data.message.content;
   } catch (error) {
-    // console.error("        [Ollama] ERROR:", error);
     throw error;
   }
 }

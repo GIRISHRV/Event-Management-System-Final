@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { LogOut, Plus, Calendar, Globe, Loader2, Ticket } from "lucide-react";
+import { Plus, Calendar, Globe, Ticket } from "lucide-react";
 import { EnhancedEventForm } from "@/components/EnhancedEventForm";
 import { EventList } from "@/components/EventList";
 import { PublicEventList } from "@/components/PublicEventList";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import type { Event, CreateEventInput } from "@/lib/supabase-types";
 import { logError, getErrorMessage } from "@/lib/error-handler";
 import Squares from "@/components/Squares";
@@ -19,7 +18,7 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 export default function CustomerDashboardPage() {
   const router = useRouter();
   const { session, userProfile, loading, signOut } = useAuth();
-  const { error: toastError, success: toastSuccess, Toast } = useToast();
+  const { error: toastError, Toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
   const [bookedEvents, setBookedEvents] = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
@@ -234,7 +233,6 @@ export default function CustomerDashboardPage() {
       // Fetch fresh data from database
       await fetchEvents();
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
       throw err;
     } finally {
       setFormLoading(false);

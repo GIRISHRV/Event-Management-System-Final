@@ -1,4 +1,7 @@
 import { useState, useRef } from "react";
+import { useForm, SubmitHandler, Path } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { eventSchema, EventFormSchema } from "@/lib/schemas";
 import { X, FileText, MapPin, Clock, ImageIcon, HelpCircle, Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Event, CreateEventInput } from "@/lib/supabase-types";
@@ -35,6 +38,53 @@ export function EnhancedEventForm({
   const [isEditMode] = useState(!!event);
   const { error: toastError, success: toastSuccess, Toast } = useToast();
 
+  // React Hook Form Setup
+  const form = useForm<EventFormSchema>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    resolver: zodResolver(eventSchema) as any,
+    defaultValues: {
+      eventName: event?.event_name || "",
+      eventDescription: event?.event_description || "",
+      startDate: event?.start_date || "",
+      startTime: event?.start_time || "",
+      endDate: event?.end_date || "",
+      endTime: event?.end_time || "",
+      timezone: event?.timezone || "UTC",
+      eventBannerUrl: event?.event_banner_url || "",
+      visibilityType: (event?.visibility_type as 'public' | 'private' | 'whitelist') || 'public',
+      maxAttendees: event?.max_attendees?.toString() || "",
+      organizerName: event?.organizer_name || "",
+      organizerContact: event?.organizer_contact || "",
+      eventStatus: (event?.event_status as 'upcoming' | 'ongoing' | 'completed' | 'cancelled') || 'upcoming',
+      venueName: event?.venue_name || "",
+      venueAddress: event?.venue_address || "",
+      venueCity: event?.venue_city || "",
+      venueLandmark: event?.venue_landmark || "",
+      venueType: (event?.venue_type as 'indoor' | 'outdoor' | 'hybrid') || 'indoor',
+      latitude: event?.venue_latitude || null,
+      longitude: event?.venue_longitude || null,
+      googleMapsUrl: event?.google_maps_url || "",
+      galleryImages: event?.gallery_images || [],
+      galleryVideos: event?.gallery_videos || [],
+      schedules: event?.schedules || [],
+      performers: event?.performers || [],
+      faqs: event?.faqs || [],
+    }
+  });
+
+  const { 
+    register, 
+    control, 
+    handleSubmit, 
+    setValue, 
+    getValues,
+    watch, 
+    formState: { errors } 
+  } = form;
+
+  // Watch form data for AI detection logic
+  const formData = watch();
+
   // UI State
   const [uiState, setUiState] = useState({
     isUploading: false,
@@ -56,113 +106,80 @@ export function EnhancedEventForm({
     expandedChanges: {} as Record<string, boolean>,
   });
 
-  // Form Data State
-  const [formData, setFormData] = useState<EventFormData>({
-    eventName: event?.event_name || "",
-    eventDescription: event?.event_description || "",
-    startDate: event?.start_date || "",
-    startTime: event?.start_time || "",
-    endDate: event?.end_date || "",
-    endTime: event?.end_time || "",
-    timezone: event?.timezone || "UTC",
-    eventBannerUrl: event?.event_banner_url || "",
-    visibilityType: event?.visibility_type || 'public',
-    maxAttendees: event?.max_attendees?.toString() || "",
-    organizerName: event?.organizer_name || "",
-    organizerContact: event?.organizer_contact || "",
-    eventStatus: event?.event_status || 'upcoming',
-    venueName: event?.venue_name || "",
-    venueAddress: event?.venue_address || "",
-    venueCity: event?.venue_city || "",
-    venueLandmark: event?.venue_landmark || "",
-    venueType: event?.venue_type || 'indoor',
-    latitude: event?.venue_latitude || null,
-    longitude: event?.venue_longitude || null,
-    googleMapsUrl: event?.google_maps_url || "",
-    galleryImages: event?.gallery_images || [],
-    galleryVideos: event?.gallery_videos || [],
-    schedules: event?.schedules || [],
-    performers: event?.performers || [],
-    faqs: event?.faqs || [],
-  });
-
-  const updateFormData = (updates: Partial<EventFormData>) => {
-    setFormData(prev => ({ ...prev, ...updates }));
-  };
-
   const updateUiState = (updates: Partial<typeof uiState>) => {
     setUiState(prev => ({ ...prev, ...updates }));
   };
 
   // Helper to normalize text for comparison (removes extra spaces, trailing dots, etc.)
-  const normalizeText = (text: string) => {
+  const normalizeText = (text: string | undefined | null) => {
     if (!text) return '';
     return text.trim().replace(/\.+$/g, '.').replace(/\s+/g, ' ');
   };
 
   // Detect what fields will change
   const detectChanges = (aiData: AIEventData) => {
+    const currentValues = getValues();
     const changes: Record<string, { old: string | number | null | undefined; new: string | number | null | undefined }> = {};
     
     if (aiData.basicInfo) {
       // Only detect real changes, ignore trivial differences
-      if (aiData.basicInfo.eventName && normalizeText(aiData.basicInfo.eventName) !== normalizeText(formData.eventName)) {
-        changes.eventName = { old: formData.eventName, new: aiData.basicInfo.eventName };
+      if (aiData.basicInfo.eventName && normalizeText(aiData.basicInfo.eventName) !== normalizeText(currentValues.eventName)) {
+        changes.eventName = { old: currentValues.eventName, new: aiData.basicInfo.eventName };
       }
-      if (aiData.basicInfo.eventDescription && normalizeText(aiData.basicInfo.eventDescription) !== normalizeText(formData.eventDescription)) {
-        changes.eventDescription = { old: formData.eventDescription, new: aiData.basicInfo.eventDescription };
+      if (aiData.basicInfo.eventDescription && normalizeText(aiData.basicInfo.eventDescription) !== normalizeText(currentValues.eventDescription)) {
+        changes.eventDescription = { old: currentValues.eventDescription, new: aiData.basicInfo.eventDescription };
       }
-      if (aiData.basicInfo.startDate && aiData.basicInfo.startDate !== formData.startDate) {
-        changes.startDate = { old: formData.startDate, new: aiData.basicInfo.startDate };
+      if (aiData.basicInfo.startDate && aiData.basicInfo.startDate !== currentValues.startDate) {
+        changes.startDate = { old: currentValues.startDate, new: aiData.basicInfo.startDate };
       }
-      if (aiData.basicInfo.startTime && aiData.basicInfo.startTime !== formData.startTime) {
-        changes.startTime = { old: formData.startTime, new: aiData.basicInfo.startTime };
+      if (aiData.basicInfo.startTime && aiData.basicInfo.startTime !== currentValues.startTime) {
+        changes.startTime = { old: currentValues.startTime, new: aiData.basicInfo.startTime };
       }
-      if (aiData.basicInfo.endDate && aiData.basicInfo.endDate !== formData.endDate) {
-        changes.endDate = { old: formData.endDate, new: aiData.basicInfo.endDate };
+      if (aiData.basicInfo.endDate && aiData.basicInfo.endDate !== currentValues.endDate) {
+        changes.endDate = { old: currentValues.endDate, new: aiData.basicInfo.endDate };
       }
-      if (aiData.basicInfo.endTime && aiData.basicInfo.endTime !== formData.endTime) {
-        changes.endTime = { old: formData.endTime, new: aiData.basicInfo.endTime };
+      if (aiData.basicInfo.endTime && aiData.basicInfo.endTime !== currentValues.endTime) {
+        changes.endTime = { old: currentValues.endTime, new: aiData.basicInfo.endTime };
       }
-      if (aiData.basicInfo.organizerName && normalizeText(aiData.basicInfo.organizerName) !== normalizeText(formData.organizerName)) {
-        changes.organizerName = { old: formData.organizerName, new: aiData.basicInfo.organizerName };
+      if (aiData.basicInfo.organizerName && normalizeText(aiData.basicInfo.organizerName) !== normalizeText(currentValues.organizerName)) {
+        changes.organizerName = { old: currentValues.organizerName, new: aiData.basicInfo.organizerName };
       }
-      if (aiData.basicInfo.maxAttendees && aiData.basicInfo.maxAttendees?.toString() !== formData.maxAttendees) {
-        changes.maxAttendees = { old: formData.maxAttendees, new: aiData.basicInfo.maxAttendees };
+      if (aiData.basicInfo.maxAttendees && aiData.basicInfo.maxAttendees?.toString() !== currentValues.maxAttendees) {
+        changes.maxAttendees = { old: currentValues.maxAttendees, new: aiData.basicInfo.maxAttendees };
       }
     }
 
     if (aiData.venue) {
-      if (aiData.venue.venueName && normalizeText(aiData.venue.venueName) !== normalizeText(formData.venueName)) {
-        changes.venueName = { old: formData.venueName, new: aiData.venue.venueName };
+      if (aiData.venue.venueName && normalizeText(aiData.venue.venueName) !== normalizeText(currentValues.venueName)) {
+        changes.venueName = { old: currentValues.venueName, new: aiData.venue.venueName };
       }
-      if (aiData.venue.venueCity && normalizeText(aiData.venue.venueCity) !== normalizeText(formData.venueCity)) {
-        changes.venueCity = { old: formData.venueCity, new: aiData.venue.venueCity };
+      if (aiData.venue.venueCity && normalizeText(aiData.venue.venueCity) !== normalizeText(currentValues.venueCity)) {
+        changes.venueCity = { old: currentValues.venueCity, new: aiData.venue.venueCity };
       }
     }
 
     // For schedules, check both length AND content
     if (aiData.schedules) {
-      const schedulesChanged = aiData.schedules.length !== formData.schedules.length || 
-        JSON.stringify(aiData.schedules) !== JSON.stringify(formData.schedules);
+      const schedulesChanged = aiData.schedules.length !== currentValues.schedules.length || 
+        JSON.stringify(aiData.schedules) !== JSON.stringify(currentValues.schedules);
       if (schedulesChanged) {
-        changes.schedules = { old: formData.schedules.length, new: aiData.schedules.length };
+        changes.schedules = { old: currentValues.schedules.length, new: aiData.schedules.length };
       }
     }
     
     if (aiData.performers) {
-      const performersChanged = aiData.performers.length !== formData.performers.length ||
-        JSON.stringify(aiData.performers) !== JSON.stringify(formData.performers);
+      const performersChanged = aiData.performers.length !== currentValues.performers.length ||
+        JSON.stringify(aiData.performers) !== JSON.stringify(currentValues.performers);
       if (performersChanged) {
-        changes.performers = { old: formData.performers.length, new: aiData.performers.length };
+        changes.performers = { old: currentValues.performers.length, new: aiData.performers.length };
       }
     }
     
     if (aiData.faqs) {
-      const faqsChanged = aiData.faqs.length !== formData.faqs.length ||
-        JSON.stringify(aiData.faqs) !== JSON.stringify(formData.faqs);
+      const faqsChanged = aiData.faqs.length !== currentValues.faqs.length ||
+        JSON.stringify(aiData.faqs) !== JSON.stringify(currentValues.faqs);
       if (faqsChanged) {
-        changes.faqs = { old: formData.faqs.length, new: aiData.faqs.length };
+        changes.faqs = { old: currentValues.faqs.length, new: aiData.faqs.length };
       }
     }
 
@@ -245,7 +262,11 @@ export function EnhancedEventForm({
       }));
     }
 
-    updateFormData(updates);
+    Object.entries(updates).forEach(([key, value]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setValue(key as Path<EventFormSchema>, value as any, { shouldValidate: true, shouldDirty: true });
+    });
+
     updateUiState({
       conversationHistory: uiState.pendingChanges.conversation,
       allRequiredComplete: true,
@@ -324,7 +345,10 @@ export function EnhancedEventForm({
       }
     }
 
-    updateFormData(updates);
+    Object.entries(updates).forEach(([key, value]) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setValue(key as Path<EventFormSchema>, value as any, { shouldValidate: true, shouldDirty: true });
+    });
   };
 
   // Generic upload handler
@@ -361,7 +385,7 @@ export function EnhancedEventForm({
 
     const url = await handleFileUpload(file, 'event-banners');
     if (url) {
-      updateFormData({ eventBannerUrl: url });
+      setValue('eventBannerUrl', url, { shouldValidate: true, shouldDirty: true });
     }
   };
 
@@ -374,18 +398,14 @@ export function EnhancedEventForm({
     venue_landmark?: string;
     display_name?: string;
   }) => {
-    const updates: Partial<EventFormData> = {
-      latitude: location.lat,
-      longitude: location.lng,
-      googleMapsUrl: `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`
-    };
+    setValue('latitude', location.lat, { shouldValidate: true, shouldDirty: true });
+    setValue('longitude', location.lng, { shouldValidate: true, shouldDirty: true });
+    setValue('googleMapsUrl', `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`, { shouldValidate: true, shouldDirty: true });
 
-    if (location.address) updates.venueAddress = location.address;
-    if (location.venue_name) updates.venueName = location.venue_name;
-    if (location.venue_city) updates.venueCity = location.venue_city;
-    if (location.venue_landmark) updates.venueLandmark = location.venue_landmark;
-    
-    updateFormData(updates);
+    if (location.address) setValue('venueAddress', location.address, { shouldValidate: true, shouldDirty: true });
+    if (location.venue_name) setValue('venueName', location.venue_name, { shouldValidate: true, shouldDirty: true });
+    if (location.venue_city) setValue('venueCity', location.venue_city, { shouldValidate: true, shouldDirty: true });
+    if (location.venue_landmark) setValue('venueLandmark', location.venue_landmark, { shouldValidate: true, shouldDirty: true });
   };
 
   const handleAIParseInstructions = async () => {
@@ -554,9 +574,7 @@ export function EnhancedEventForm({
     updateUiState({ uploadingPerformerIndex: performerIndex });
     const url = await handleFileUpload(file, 'event-banners');
     if (url) {
-      const updatedPerformers = [...formData.performers];
-      updatedPerformers[performerIndex].image_url = url;
-      updateFormData({ performers: updatedPerformers });
+      setValue(`performers.${performerIndex}.image_url`, url, { shouldValidate: true, shouldDirty: true });
     }
     updateUiState({ uploadingPerformerIndex: null });
   };
@@ -569,7 +587,8 @@ export function EnhancedEventForm({
     updateUiState({ uploadingGalleryType: 'image' });
     const url = await handleFileUpload(file, 'event-banners');
     if (url) {
-      updateFormData({ galleryImages: [...formData.galleryImages, url] });
+      const currentImages = getValues('galleryImages') || [];
+      setValue('galleryImages', [...currentImages, url], { shouldValidate: true, shouldDirty: true });
     }
     updateUiState({ uploadingGalleryType: null });
   };
@@ -582,20 +601,15 @@ export function EnhancedEventForm({
     updateUiState({ uploadingGalleryType: 'video' });
     const url = await handleFileUpload(file, 'event-banners');
     if (url) {
-      updateFormData({ galleryVideos: [...formData.galleryVideos, url] });
+      const currentVideos = getValues('galleryVideos') || [];
+      setValue('galleryVideos', [...currentVideos, url], { shouldValidate: true, shouldDirty: true });
     }
     updateUiState({ uploadingGalleryType: null });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.eventName.trim() || !formData.startDate || !formData.startTime || !formData.endDate || !formData.endTime) {
-      toastError("Please fill in all required fields");
-      return;
-    }
-
+  const onFormSubmit: SubmitHandler<EventFormSchema> = async (data) => {
     // Validate location is selected
-    if (!formData.latitude || !formData.longitude) {
+    if (!data.latitude || !data.longitude) {
       toastError("Please select a location on the map in the Venue & Location tab");
       setCurrentTab('venue');
       return;
@@ -603,46 +617,49 @@ export function EnhancedEventForm({
 
     try {
       // Create complete event data using all database fields
-      const eventData = {
+      const eventData: CreateEventInput = {
         // Required core fields
         user_email: userEmail || '',
-        event_name: formData.eventName,
-        event_description: formData.eventDescription || undefined,
-        start_date: formData.startDate,
-        start_time: formData.startTime,
-        end_date: formData.endDate,
-        end_time: formData.endTime,
-        timezone: formData.timezone,
+        event_name: data.eventName,
+        event_description: data.eventDescription || undefined,
+        start_date: data.startDate,
+        start_time: data.startTime,
+        end_date: data.endDate,
+        end_time: data.endTime,
+        timezone: data.timezone,
         
         // Media and display
-        event_banner_url: formData.eventBannerUrl || undefined,
+        event_banner_url: data.eventBannerUrl || undefined,
         
         // Event settings and configuration
-        visibility_type: formData.visibilityType,
-        event_status: formData.eventStatus,
-        max_attendees: formData.maxAttendees ? parseInt(formData.maxAttendees) : undefined,
+        visibility_type: data.visibilityType,
+        event_status: data.eventStatus,
+        max_attendees: data.maxAttendees ? parseInt(data.maxAttendees) : undefined,
         
         // Venue and location information
-        venue_name: formData.venueName || undefined,
-        venue_address: formData.venueAddress || undefined,
-        venue_city: formData.venueCity || undefined,
-        venue_landmark: formData.venueLandmark || undefined,
-        venue_type: formData.venueType || undefined,
-        venue_latitude: formData.latitude || undefined,
-        venue_longitude: formData.longitude || undefined,
-        google_maps_url: formData.googleMapsUrl || undefined,
+        venue_name: data.venueName || undefined,
+        venue_address: data.venueAddress || undefined,
+        venue_city: data.venueCity || undefined,
+        venue_landmark: data.venueLandmark || undefined,
+        venue_type: data.venueType || undefined,
+        venue_latitude: data.latitude || undefined,
+        venue_longitude: data.longitude || undefined,
+        google_maps_url: data.googleMapsUrl || undefined,
         
         // Organizer information
-        organizer_name: formData.organizerName || undefined,
-        organizer_contact: formData.organizerContact || undefined,
+        organizer_name: data.organizerName || undefined,
+        organizer_contact: data.organizerContact || undefined,
         organizer_email: userEmail || undefined, // Use user email as organizer email by default
         
         // JSON data arrays (only include if not empty)
-        schedules: formData.schedules.length > 0 ? formData.schedules : [],
-        performers: formData.performers.length > 0 ? formData.performers : [],
-        gallery_images: formData.galleryImages.length > 0 ? formData.galleryImages : [],
-        gallery_videos: formData.galleryVideos.length > 0 ? formData.galleryVideos : [],
-        faqs: formData.faqs.length > 0 ? formData.faqs : [],
+        schedules: data.schedules.length > 0 ? data.schedules : [],
+        performers: data.performers.length > 0 ? data.performers.map(p => ({
+          ...p,
+          social_links: p.social_links || undefined
+        })) : [],
+        gallery_images: data.galleryImages.length > 0 ? data.galleryImages : [],
+        gallery_videos: data.galleryVideos.length > 0 ? data.galleryVideos : [],
+        faqs: data.faqs.length > 0 ? data.faqs : [],
         tags: [],
       };
 
@@ -1040,12 +1057,13 @@ export function EnhancedEventForm({
         </nav>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
         {/* Basic Information Tab */}
         {currentTab === 'basic' && (
           <BasicInfoTab
-            formData={formData}
-            updateFormData={updateFormData}
+            register={register}
+            errors={errors}
+            watch={watch}
             isUploading={uiState.isUploading}
             onImageUpload={handleImageUpload}
             fileInputRef={fileInputRef}
@@ -1055,8 +1073,9 @@ export function EnhancedEventForm({
         {/* Venue & Location Tab */}
         {currentTab === 'venue' && (
           <VenueTab
-            formData={formData}
-            updateFormData={updateFormData}
+            register={register}
+            errors={errors}
+            watch={watch}
             onLocationSelect={handleLocationSelect}
           />
         )}
@@ -1064,8 +1083,8 @@ export function EnhancedEventForm({
         {/* Schedule & Performers Tab */}
         {currentTab === 'schedule-lineup' && (
           <ScheduleTab
-            formData={formData}
-            updateFormData={updateFormData}
+            register={register}
+            control={control}
             uploadingPerformerIndex={uiState.uploadingPerformerIndex}
             onPerformerImageUpload={handlePerformerImageUpload}
             performerImageInputRef={performerImageInputRef}
@@ -1075,8 +1094,8 @@ export function EnhancedEventForm({
         {/* Gallery Tab */}
         {currentTab === 'gallery' && (
           <GalleryTab
-            formData={formData}
-            updateFormData={updateFormData}
+            watch={watch}
+            setValue={setValue}
             uploadingGalleryType={uiState.uploadingGalleryType}
             onGalleryImageUpload={handleGalleryImageUpload}
             onGalleryVideoUpload={handleGalleryVideoUpload}
@@ -1088,8 +1107,9 @@ export function EnhancedEventForm({
         {/* FAQs Tab */}
         {currentTab === 'faqs' && (
           <FaqsTab
-            formData={formData}
-            updateFormData={updateFormData}
+            register={register}
+            control={control}
+            errors={errors}
           />
         )}
 
