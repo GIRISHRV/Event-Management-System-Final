@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
-import { Booking, Profile } from "@/lib/supabase-types";
+import { useEventBookings } from "@/hooks/useEventBookings";
 import { useToast } from "@/components/Toast";
 import { Check, X, Clock, Users, UserCheck, UserX, Search } from "lucide-react";
 import Image from "next/image";
@@ -12,96 +11,20 @@ interface EventOrganizerViewProps {
   eventCapacity?: number;
 }
 
-interface BookingWithProfile extends Booking {
-  profiles: Profile;
-}
-
 export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerViewProps) {
-  const [bookings, setBookings] = useState<BookingWithProfile[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { bookings, loading, fetchBookings, updateBookingStatus } = useEventBookings(eventId);
   const [filter, setFilter] = useState<'all' | 'waitlist' | 'confirmed' | 'cancelled'>('all');
   const [searchQuery, setSearchQuery] = useState("");
-  const { success, error: toastError, Toast } = useToast();
-
-  const fetchBookings = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      // First fetch bookings
-      const { data: bookingsData, error: bookingsError } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('event_id', eventId)
-        .order('created_at', { ascending: false });
-
-      if (bookingsError) throw bookingsError;
-
-      if (!bookingsData || bookingsData.length === 0) {
-        setBookings([]);
-        return;
-      }
-
-      // Then fetch profiles for these bookings
-      const userIds = bookingsData.map(b => b.user_id);
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .in('id', userIds);
-
-      if (profilesError) throw profilesError;
-
-      // Combine data
-      const profilesMap = new Map(profilesData?.map(p => [p.id, p]));
-      const combinedData = bookingsData.map(booking => ({
-        ...booking,
-        profiles: profilesMap.get(booking.user_id) || {
-          id: booking.user_id,
-          email: 'Unknown',
-          role: 'customer',
-          created_at: new Date().toISOString()
-        } as Profile
-      }));
-
-      setBookings(combinedData);
-    } catch (err) {
-      console.error('Error fetching bookings:', JSON.stringify(err, null, 2));
-      toastError('Failed to load guest list');
-    } finally {
-      setLoading(false);
-    }
-  }, [eventId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { success, Toast } = useToast();
 
   useEffect(() => {
     fetchBookings();
   }, [fetchBookings]);
 
-  const updateStatus = async (bookingId: string, newStatus: 'confirmed' | 'cancelled' | 'waitlist') => {
-    try {
-      console.log(`Attempting to update booking ${bookingId} to ${newStatus}`);
-      const { data, error } = await supabase
-        .from('bookings')
-        .update({ status: newStatus })
-        .eq('id', bookingId)
-        .select();
-
-      if (error) {
-        console.error('Supabase update error:', error);
-        throw error;
-      }
-
-      if (!data || data.length === 0) {
-        console.error('No rows updated. This usually means Row Level Security (RLS) is blocking the update because you are not the owner of the booking.');
-        throw new Error('Permission denied: You cannot update this booking.');
-      }
-
-      setBookings(prev => prev.map(b => 
-        b.id === bookingId ? { ...b, status: newStatus } : b
-      ));
-      
+  const handleUpdateStatus = async (bookingId: string, newStatus: 'confirmed' | 'cancelled' | 'waitlist') => {
+    const result = await updateBookingStatus(bookingId, newStatus);
+    if (result) {
       success(`Guest ${newStatus === 'confirmed' ? 'approved' : newStatus === 'cancelled' ? 'rejected' : 'moved to waitlist'}`);
-    } catch (err) {
-      console.error('Error updating status:', err);
-      toastError('Failed to update guest status. Check console for details.');
     }
   };
 
@@ -281,14 +204,14 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
                         {booking.status === 'waitlist' && (
                           <>
                             <button
-                              onClick={() => updateStatus(booking.id, 'confirmed')}
+                              onClick={() => handleUpdateStatus(booking.id, 'confirmed')}
                               className="p-2 bg-green-500/10 hover:bg-green-500/20 text-green-500 rounded-lg transition-colors"
                               title="Approve"
                             >
                               <Check size={18} />
                             </button>
                             <button
-                              onClick={() => updateStatus(booking.id, 'cancelled')}
+                              onClick={() => handleUpdateStatus(booking.id, 'cancelled')}
                               className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
                               title="Reject"
                             >
@@ -298,7 +221,7 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
                         )}
                         {booking.status === 'confirmed' && (
                           <button
-                            onClick={() => updateStatus(booking.id, 'waitlist')}
+                            onClick={() => handleUpdateStatus(booking.id, 'waitlist')}
                             className="p-2 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-500 rounded-lg transition-colors"
                             title="Move to Waitlist"
                           >
@@ -307,7 +230,7 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
                         )}
                         {booking.status === 'cancelled' && (
                           <button
-                            onClick={() => updateStatus(booking.id, 'waitlist')}
+                            onClick={() => handleUpdateStatus(booking.id, 'waitlist')}
                             className="p-2 bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 rounded-lg transition-colors"
                             title="Restore to Waitlist"
                           >

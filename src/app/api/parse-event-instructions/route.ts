@@ -239,11 +239,16 @@ schedules array format (ALL fields required):
     "day_number": 1,  // Integer: which day (1, 2, 3...)
     "start_time": "09:00",  // String: HH:MM format
     "end_time": "17:00",  // String: HH:MM format
-    "title": "Activity Name",  // String: what happens
-    "description": "Details",  // String: can be empty ""
-    "location": "Main Stage"  // String: where it happens, can be empty ""
+    "title": "Keynote Speech", // KEEP SHORT (max 5-7 words)
+    "description": "Speaker: Dr. Smith. Topic: Future of AI.", // DETAILS GO HERE
+    "location": "Main Hall"  // String: where it happens, can be empty ""
   }
 ]
+
+CRITICAL RULES FOR SCHEDULES:
+1. Split long activities into Title and Description.
+2. BAD: Title="Lunch break with vegan options provided"
+3. GOOD: Title="Lunch Break", Description="Vegan options provided"
 
 performers array format (ALL fields required):
 [
@@ -339,6 +344,54 @@ Your job is to:
 4. If missing required fields, ask ONE clear question
 5. If all required fields collected, acknowledge completion and offer to help with optional details
 
+=== DATA STRUCTURE REFERENCE ===
+
+basicInfo object fields:
+- eventName: string
+- eventDescription: string
+- startDate: string (YYYY-MM-DD)
+- startTime: string (HH:MM)
+- endDate: string (YYYY-MM-DD)
+- endTime: string (HH:MM)
+- organizerName: string
+- organizerContact: string
+- maxAttendees: number
+- venueType: string ("indoor", "outdoor", "hybrid")
+
+schedules array format:
+[
+  {
+    "day_number": 1,
+    "start_time": "09:00",
+    "end_time": "10:00",
+    "title": "Keynote Speech", // KEEP SHORT (max 5-7 words)
+    "description": "Speaker: Dr. Smith. Topic: Future of AI.", // DETAILS GO HERE
+    "location": "Room A"
+  }
+]
+
+CRITICAL RULES FOR SCHEDULES:
+1. Split long activities into Title and Description.
+2. BAD: Title="Lunch break with vegan options provided"
+3. GOOD: Title="Lunch Break", Description="Vegan options provided"
+
+performers array format:
+[
+  {
+    "name": "Name",
+    "bio": "Bio",
+    "performer_type": "artist" // or "speaker", "chef", "performer", "other"
+  }
+]
+
+faqs array format:
+[
+  {
+    "question": "Question?",
+    "answer": "Answer."
+  }
+]
+
 RESPONSE FORMAT - ALWAYS include "partialData" with whatever you've extracted:
 
 FORMAT 1 - If required information is incomplete:
@@ -352,7 +405,9 @@ FORMAT 1 - If required information is incomplete:
       "startDate": "YYYY-MM-DD if mentioned or omit",
       "startTime": "HH:MM if mentioned or omit",
       "endDate": "YYYY-MM-DD if mentioned or omit",
-      "endTime": "HH:MM if mentioned or omit"
+      "endTime": "HH:MM if mentioned or omit",
+      "organizerName": "extracted name or omit",
+      "organizerContact": "extracted contact or omit"
     },
     "schedules": [],
     "performers": [],
@@ -373,7 +428,9 @@ FORMAT 2 - If all REQUIRED fields collected (but can add optional):
       "startDate": "YYYY-MM-DD",
       "startTime": "HH:MM",
       "endDate": "YYYY-MM-DD",
-      "endTime": "HH:MM"
+      "endTime": "HH:MM",
+      "organizerName": "string",
+      "organizerContact": "string"
     },
     "schedules": [],
     "performers": [],
