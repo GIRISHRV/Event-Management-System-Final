@@ -2,7 +2,7 @@
 
 import { useState, useMemo, memo } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Event } from "@/lib/supabase-types";
 
 interface EventCalendarViewProps {

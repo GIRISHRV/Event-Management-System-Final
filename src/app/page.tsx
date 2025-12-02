@@ -62,7 +62,7 @@ export default function Home() {
           return;
         }
         setUpcomingEvents((data || []) as Event[]);
-      } catch (err) {
+      } catch {
         // console.error("Error fetching events:", err);
         setUpcomingEvents([]); // Set empty array on error
       } finally {

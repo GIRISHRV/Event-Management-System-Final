@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import Squares from "./Squares";
 
@@ -8,29 +7,12 @@ interface LoadingScreenProps {
 }
 
 export function LoadingScreen({ message = "Loading...", isLoading = true }: LoadingScreenProps) {
-  const [isVisible, setIsVisible] = useState(isLoading);
-  const [shouldRender, setShouldRender] = useState(isLoading);
-
-  useEffect(() => {
-    if (isLoading) {
-      setShouldRender(true);
-      // Small delay to ensure render before fade in
-      requestAnimationFrame(() => setIsVisible(true));
-    } else {
-      setIsVisible(false);
-      // Wait for fade out animation to complete before unmounting
-      const timer = setTimeout(() => setShouldRender(false), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [isLoading]);
-
-  if (!shouldRender) return null;
+  // Simple approach: render based on isLoading prop directly with CSS transitions
+  if (!isLoading) return null;
 
   return (
     <div 
-      className={`fixed inset-0 z-100 bg-zinc-950 flex items-center justify-center overflow-hidden transition-opacity duration-400 ease-in-out ${
-        isVisible ? "opacity-100" : "opacity-0"
-      }`}
+      className="fixed inset-0 z-100 bg-zinc-950 flex items-center justify-center overflow-hidden animate-fade-in"
     >
       <div className="absolute inset-0 z-0">
         <Squares

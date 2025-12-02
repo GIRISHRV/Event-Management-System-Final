@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useEventBookings } from "@/hooks/useEventBookings";
 import { useToast } from "@/components/ui/Toast";
 import { Check, X, Clock, Users, UserCheck, UserX, Search } from "lucide-react";

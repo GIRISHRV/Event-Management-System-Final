@@ -41,6 +41,11 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
   const [progress, setProgress] = useState(100);
   const duration = toast.duration || 3000;
 
+  const handleRemove = useCallback(() => {
+    setIsExiting(true);
+    setTimeout(() => onRemove(toast.id), 300); // Wait for animation
+  }, [onRemove, toast.id]);
+
   useEffect(() => {
     const startTime = Date.now();
     const endTime = startTime + duration;
@@ -59,12 +64,7 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
     }, 10);
 
     return () => clearInterval(timer);
-  }, [toast.id, duration]);
-
-  const handleRemove = () => {
-    setIsExiting(true);
-    setTimeout(() => onRemove(toast.id), 300); // Wait for animation
-  };
+  }, [toast.id, duration, handleRemove]);
 
   const styles = {
     success: {

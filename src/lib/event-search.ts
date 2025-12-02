@@ -340,7 +340,7 @@ export async function searchWeb(query: string): Promise<string | null> {
     const data = await response.json();
     
     return data.summary || null;
-  } catch (error) {
+  } catch {
     return null;
   }
 }

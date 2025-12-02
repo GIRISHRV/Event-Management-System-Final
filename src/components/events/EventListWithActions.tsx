@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useRef, useState, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Calendar, Share2, Edit, Trash2, MoreHorizontal, X } from "lucide-react";
