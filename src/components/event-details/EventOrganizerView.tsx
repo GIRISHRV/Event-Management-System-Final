@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useEventBookings } from "@/hooks/useEventBookings";
-import { useToast } from "@/components/Toast";
+import { useToast } from "@/components/ui/Toast";
 import { Check, X, Clock, Users, UserCheck, UserX, Search } from "lucide-react";
 import Image from "next/image";
 
@@ -46,7 +46,7 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
   });
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-8 animate-in fade-in duration-300">
       {/* Stats Overview */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl backdrop-blur-sm">

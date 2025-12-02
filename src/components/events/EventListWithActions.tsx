@@ -5,8 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { Calendar, Share2, Edit, Trash2, MoreHorizontal, X } from "lucide-react";
 import type { Event } from "@/lib/supabase-types";
-import { SkeletonCard } from "./SkeletonCard";
-import { EmptyState } from "./EmptyState";
+import { EventCardSkeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { EventSearchFilter } from "./EventSearchFilter";
 
 interface EventListWithActionsProps {
@@ -33,7 +33,6 @@ export function EventListWithActions({
   onDiscoverEvents,
 }: EventListWithActionsProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const animatedRef = useRef(false);
 
   // Search and filter state
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,22 +92,6 @@ export function EventListWithActions({
     setDateFilter("all");
   }, []);
 
-  // Dynamic GSAP import for better bundle splitting
-  useEffect(() => {
-    if (!isLoading && filteredEvents.length > 0 && !animatedRef.current) {
-      animatedRef.current = true;
-
-      Promise.all([import("gsap")]).then(([gsapModule]) => {
-        const gsap = gsapModule.default;
-        gsap.fromTo(
-          ".event-card-enhanced",
-          { opacity: 0, y: 20 },
-          { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
-        );
-      });
-    }
-  }, [isLoading, filteredEvents]);
-
   const handleShare = useCallback(async (event: Event, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -158,7 +141,7 @@ export function EventListWithActions({
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
-            <SkeletonCard key={i} />
+            <EventCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -193,7 +176,7 @@ export function EventListWithActions({
             <div key={event.id} className="relative group">
               <Link
                 href={`/event/${event.id}`}
-                className="event-card-enhanced relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block opacity-0"
+                className="event-card-enhanced relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
                 style={{ aspectRatio: "3/4" }}
               >
                 {/* Background Image */}
@@ -203,7 +186,7 @@ export function EventListWithActions({
                       src={event.event_banner_url}
                       alt={event.event_name}
                       fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
                     <div className="w-full h-full bg-linear-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center">

@@ -6,16 +6,15 @@ import Link from "next/link";
 import {
   Calendar,
   MapPin,
-  ChevronLeft,
-  ChevronRight,
   Heart,
   Share2,
+  Loader2,
 } from "lucide-react";
 import { getPublicEvents } from "@/lib/events";
 import { supabase } from "@/lib/supabase";
 import type { Event } from "@/lib/supabase-types";
-import { SkeletonCard } from "./SkeletonCard";
-import { EmptyState } from "./EmptyState";
+import { EventCardSkeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 interface PublicEventListWithFavoritesProps {
   userId?: string;
@@ -33,13 +32,14 @@ export function PublicEventListWithFavorites({
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
+  const [displayCount, setDisplayCount] = useState(EVENTS_PER_PAGE);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [uniqueLocations, setUniqueLocations] = useState<string[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [savingFavorite, setSavingFavorite] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const lastAnimatedPage = useRef<number>(-1);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   // Fetch favorites
   useEffect(() => {
@@ -54,29 +54,57 @@ export function PublicEventListWithFavorites({
 
         if (error) throw error;
         setFavorites(new Set(data?.map((f) => f.event_id) || []));
-      } catch (error) {
-        console.error("Error fetching favorites:", error);
+      } catch {
+        // Silently fail - favorites are non-critical
       }
     };
 
     fetchFavorites();
   }, [userId]);
 
-  // Dynamic GSAP import for better bundle splitting
+  // Infinite scroll observer
   useEffect(() => {
-    if (!loading && events.length > 0 && lastAnimatedPage.current !== currentPage) {
-      lastAnimatedPage.current = currentPage;
+    const currentFilteredLength = events.filter((event) => {
+      const matchesSearch =
+        event.event_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (event.event_description?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false);
+      const matchesLocation = locationFilter === "all" || event.venue_city === locationFilter;
+      let matchesDate = true;
+      if (dateFilter !== "all") {
+        const eventDate = new Date(event.start_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (dateFilter === "upcoming") matchesDate = eventDate >= today;
+        else if (dateFilter === "this-week") {
+          const weekEnd = new Date(today);
+          weekEnd.setDate(weekEnd.getDate() + 7);
+          matchesDate = eventDate >= today && eventDate <= weekEnd;
+        } else if (dateFilter === "this-month") {
+          matchesDate = eventDate.getMonth() === today.getMonth() && eventDate.getFullYear() === today.getFullYear();
+        }
+      }
+      return matchesSearch && matchesLocation && matchesDate;
+    }).length;
 
-      import("gsap").then((gsapModule) => {
-        const gsap = gsapModule.default;
-        gsap.fromTo(
-          ".public-event-card-fav",
-          { opacity: 0, y: 20 },
-          { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
-        );
-      });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !loadingMore && displayCount < currentFilteredLength) {
+          setLoadingMore(true);
+          setTimeout(() => {
+            setDisplayCount(prev => Math.min(prev + EVENTS_PER_PAGE, currentFilteredLength));
+            setLoadingMore(false);
+          }, 300);
+        }
+      },
+      { threshold: 0.1, rootMargin: "100px" }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
     }
-  }, [loading, currentPage, events]);
+
+    return () => observer.disconnect();
+  }, [loadingMore, displayCount, events, searchTerm, locationFilter, dateFilter]);
 
   useEffect(() => {
     fetchEvents();
@@ -97,9 +125,7 @@ export function PublicEventListWithFavorites({
     try {
       const data = await getPublicEvents();
       setEvents(data);
-      setCurrentPage(1);
-    } catch (error) {
-      console.error("Error fetching public events:", error);
+    } catch {
       setEvents([]);
     } finally {
       setLoading(false);
@@ -137,8 +163,8 @@ export function PublicEventListWithFavorites({
 
           setFavorites((prev) => new Set(prev).add(eventId));
         }
-      } catch (error) {
-        console.error("Error toggling favorite:", error);
+      } catch {
+        // Silently fail - will show stale state but recover on refresh
       } finally {
         setSavingFavorite(null);
       }
@@ -204,13 +230,14 @@ export function PublicEventListWithFavorites({
 
   const hasFilters = !!(searchTerm || locationFilter !== "all" || dateFilter !== "all");
 
-  // Pagination
-  const totalPages = Math.ceil(filteredEvents.length / EVENTS_PER_PAGE);
-  const startIndex = (currentPage - 1) * EVENTS_PER_PAGE;
-  const paginatedEvents = filteredEvents.slice(
-    startIndex,
-    startIndex + EVENTS_PER_PAGE
-  );
+  // Reset display count when filters change
+  useEffect(() => {
+    setDisplayCount(EVENTS_PER_PAGE);
+  }, [searchTerm, locationFilter, dateFilter]);
+
+  // Infinite scroll - show events up to displayCount
+  const displayedEvents = filteredEvents.slice(0, displayCount);
+  const hasMore = displayCount < filteredEvents.length;
 
   if (loading) {
     return (
@@ -227,7 +254,7 @@ export function PublicEventListWithFavorites({
         {/* Grid Skeleton */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
-            <SkeletonCard key={i} />
+            <EventCardSkeleton key={i} />
           ))}
         </div>
       </div>
@@ -243,10 +270,7 @@ export function PublicEventListWithFavorites({
           type="text"
           placeholder="Search events by name or description..."
           value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setCurrentPage(1);
-          }}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="w-full px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 transition backdrop-blur-md"
         />
 
@@ -257,7 +281,6 @@ export function PublicEventListWithFavorites({
             value={locationFilter}
             onChange={(e) => {
               setLocationFilter(e.target.value);
-              setCurrentPage(1);
             }}
             className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm"
           >
@@ -274,7 +297,6 @@ export function PublicEventListWithFavorites({
             value={dateFilter}
             onChange={(e) => {
               setDateFilter(e.target.value);
-              setCurrentPage(1);
             }}
             className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm"
           >
@@ -304,11 +326,11 @@ export function PublicEventListWithFavorites({
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {paginatedEvents.map((event) => (
+            {displayedEvents.map((event) => (
               <Link
                 key={event.id}
                 href={`/event/${event.id}`}
-                className="public-event-card-fav group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block opacity-0"
+                className="public-event-card-fav group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
                 style={{ aspectRatio: "3/4" }}
               >
                 {/* Background Image */}
@@ -318,7 +340,9 @@ export function PublicEventListWithFavorites({
                       src={event.event_banner_url}
                       alt={event.event_name}
                       fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      placeholder="blur"
+                      blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFgABAQEAAAAAAAAAAAAAAAAAAAUH/8QAIhAAAQMDBAMBAAAAAAAAAAAAAQIDBAAFEQYSITEHE0FR/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAZEQACAwEAAAAAAAAAAAAAAAABAgADESH/2gAMAwEAAhEDEEEEBAyDzzg="
                     />
                   ) : (
                     <div className="w-full h-full bg-linear-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center">
@@ -336,7 +360,7 @@ export function PublicEventListWithFavorites({
                     <button
                       onClick={(e) => toggleFavorite(event.id, e)}
                       disabled={savingFavorite === event.id}
-                      className={`p-2 rounded-full backdrop-blur-sm transition ${
+                      className={`p-2 rounded-full backdrop-blur-sm transition focus:outline-none focus:ring-2 focus:ring-green-500 ${
                         favorites.has(event.id)
                           ? "bg-rose-500 text-white"
                           : "bg-black/50 text-white hover:bg-black/70"
@@ -350,7 +374,7 @@ export function PublicEventListWithFavorites({
                   )}
                   <button
                     onClick={(e) => handleShare(event, e)}
-                    className="p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition"
+                    className="p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition focus:outline-none focus:ring-2 focus:ring-green-500"
                   >
                     <Share2 size={18} />
                   </button>
@@ -390,28 +414,19 @@ export function PublicEventListWithFavorites({
             ))}
           </div>
 
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-4 mt-8">
-              <button
-                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                disabled={currentPage === 1}
-                className="p-2 rounded-lg border border-zinc-700/50 text-white hover:border-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                <ChevronLeft size={20} />
-              </button>
-
-              <div className="text-sm text-zinc-400">
-                Page {currentPage} of {totalPages}
-              </div>
-
-              <button
-                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 rounded-lg border border-zinc-700/50 text-white hover:border-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                <ChevronRight size={20} />
-              </button>
+          {/* Infinite Scroll Trigger */}
+          {hasMore && (
+            <div ref={loadMoreRef} className="flex items-center justify-center py-8">
+              {loadingMore ? (
+                <div className="flex items-center gap-2 text-zinc-400">
+                  <Loader2 size={20} className="animate-spin" />
+                  <span>Loading more events...</span>
+                </div>
+              ) : (
+                <div className="text-sm text-zinc-500">
+                  Scroll for more • {displayedEvents.length} of {filteredEvents.length} events
+                </div>
+              )}
             </div>
           )}
         </>

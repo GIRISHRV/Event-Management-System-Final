@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import PillNav from "@/components/PillNav";
-import { useToast } from "@/components/Toast";
-import { Loader2, Upload, User, Save, ArrowLeft, Mail, Shield, Hash, Calendar, Ticket } from "lucide-react";
-import Squares from "@/components/Squares";
-import { LoadingScreen } from "@/components/LoadingScreen";
+import PillNav from "@/components/layout/PillNav";
+import { useToast } from "@/components/ui/Toast";
+import { Loader2, Upload, User, Save, ArrowLeft, Mail, Shield, Hash } from "lucide-react";
+import Squares from "@/components/ui/Squares";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -25,12 +25,6 @@ export default function ProfilePage() {
     bio: "",
     avatar_url: "",
   });
-  const [eventStats, setEventStats] = useState({
-    eventsCreated: 0,
-    eventsAttending: 0,
-    upcomingEvents: 0,
-    pastEvents: 0,
-  });
 
   useEffect(() => {
     if (userProfile) {
@@ -42,53 +36,6 @@ export default function ProfilePage() {
       });
     }
   }, [userProfile]);
-
-  // Fetch event stats
-  useEffect(() => {
-    const fetchEventStats = async () => {
-      if (!session?.user?.id) return;
-
-      try {
-        const today = new Date().toISOString().split("T")[0];
-
-        // Fetch events created by user
-        const { data: createdEvents } = await supabase
-          .from("events")
-          .select("id, start_date")
-          .eq("creator_id", session.user.id);
-
-        // Fetch events user is attending (RSVPs)
-        const { data: attendingEvents } = await supabase
-          .from("rsvps")
-          .select("event_id, events(start_date)")
-          .eq("user_id", session.user.id)
-          .eq("status", "attending");
-
-        const eventsCreated = createdEvents?.length || 0;
-        const eventsAttending = attendingEvents?.length || 0;
-
-        // Calculate upcoming and past from both
-        const allEventDates = [
-          ...(createdEvents || []).map((e) => e.start_date),
-          ...(attendingEvents || []).map((e) => (e.events as { start_date: string } | null)?.start_date).filter(Boolean),
-        ];
-
-        const upcomingEvents = allEventDates.filter((d) => d && d >= today).length;
-        const pastEvents = allEventDates.filter((d) => d && d < today).length;
-
-        setEventStats({
-          eventsCreated,
-          eventsAttending,
-          upcomingEvents,
-          pastEvents,
-        });
-      } catch (error) {
-        console.error("Error fetching event stats:", error);
-      }
-    };
-
-    fetchEventStats();
-  }, [session?.user?.id]);
 
   // Protect route
   useEffect(() => {
@@ -386,33 +333,6 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </div>
-                </div>
-
-                {/* Event Stats Section */}
-                <div className="bg-zinc-900/80 backdrop-blur-md border border-zinc-800 rounded-2xl p-6 shadow-xl">
-                  <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-                    <Calendar size={20} className="text-zinc-400" />
-                    Event Statistics
-                  </h2>
-              
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl bg-zinc-800/50 border border-zinc-700">
-                      <p className="text-sm text-zinc-400">Events Created</p>
-                      <p className="text-2xl font-bold text-white">{eventStats.eventsCreated}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-zinc-800/50 border border-zinc-700">
-                      <p className="text-sm text-zinc-400">Attending</p>
-                      <p className="text-2xl font-bold text-white">{eventStats.eventsAttending}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-zinc-800/50 border border-zinc-700">
-                      <p className="text-sm text-zinc-400">Upcoming</p>
-                      <p className="text-2xl font-bold text-white">{eventStats.upcomingEvents}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-zinc-800/50 border border-zinc-700">
-                      <p className="text-sm text-zinc-400">Past Events</p>
-                      <p className="text-2xl font-bold text-white">{eventStats.pastEvents}</p>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>

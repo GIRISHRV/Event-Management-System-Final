@@ -92,7 +92,7 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
   return (
     <div
       className={`
-        pointer-events-auto relative w-full max-w-sm overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900
+        pointer-events-auto relative w-full max-w-sm overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 shadow-lg
         transition-all duration-300 ease-in-out
         ${isExiting ? "translate-x-full opacity-0" : "translate-x-0 opacity-100"}
       `}
@@ -103,17 +103,17 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
           <Icon className={`h-5 w-5 ${styles.icon}`} />
         </div>
         <div className="ml-3 flex-1">
-          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <p className="text-sm font-medium text-zinc-100">
             {toast.type.charAt(0).toUpperCase() + toast.type.slice(1)}
           </p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <p className="mt-1 text-sm text-zinc-400">
             {toast.message}
           </p>
         </div>
         <div className="ml-4 flex shrink-0">
           <button
             onClick={handleRemove}
-            className="inline-flex rounded-md text-zinc-400 hover:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:hover:text-zinc-300"
+            className="inline-flex rounded-md text-zinc-400 hover:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
           >
             <span className="sr-only">Close</span>
             <X className="h-5 w-5" />
@@ -122,7 +122,7 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
       </div>
       
       {/* Progress Bar */}
-      <div className="h-1 w-full bg-zinc-100 dark:bg-zinc-800">
+      <div className="h-1 w-full bg-zinc-800">
         <div 
           className={`h-full ${styles.bg} transition-all duration-75 ease-linear`}
           style={{ width: `${progress}%` }}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
-import PillNav from "@/components/PillNav";
+import PillNav from "@/components/layout/PillNav";
 
 export default function SignInPage() {
   const router = useRouter();

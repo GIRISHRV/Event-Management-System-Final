@@ -6,7 +6,7 @@ import { EventFormSchema } from '@/lib/schemas';
 import { VENUE_TYPES } from "@/lib/constants";
 
 const OpenMapLocationPicker = dynamic(
-  () => import('../OpenMapLocationPicker').then(mod => ({ default: mod.OpenMapLocationPicker })),
+  () => import('./OpenMapLocationPicker').then(mod => ({ default: mod.OpenMapLocationPicker })),
   { 
     ssr: false,
     loading: () => (

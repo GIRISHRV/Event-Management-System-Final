@@ -106,8 +106,8 @@ export function OpenMapLocationPicker({
         setSelectedLocation(locationData);
         onLocationSelect(locationData);
       }
-    } catch (error) {
-      console.error('Reverse geocoding failed:', error);
+    } catch {
+      // Reverse geocoding failed - location still works, just no address
     }
   }, [onLocationSelect]);
 
@@ -133,8 +133,8 @@ export function OpenMapLocationPicker({
       );
       const data = await response.json();
       setSearchResults(data);
-    } catch (error) {
-      console.error('Search failed:', error);
+    } catch {
+      // Search failed - show no results
     } finally {
       setIsSearching(false);
     }
@@ -177,8 +177,8 @@ export function OpenMapLocationPicker({
           setMapCenter(newPosition);
           reverseGeocode(lat, lng);
         },
-        (error) => {
-          console.error('Error getting current location:', error);
+        () => {
+          // Geolocation failed - user can manually search
         }
       );
     }

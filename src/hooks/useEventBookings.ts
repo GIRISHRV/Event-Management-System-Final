@@ -1,7 +1,7 @@
 import useSWR from 'swr';
 import { supabase } from '@/lib/supabase';
 import { Booking, Profile } from '@/lib/supabase-types';
-import { useToast } from '@/components/Toast';
+import { useToast } from '@/components/ui/Toast';
 
 export interface BookingWithProfile extends Booking {
   profiles: Profile;

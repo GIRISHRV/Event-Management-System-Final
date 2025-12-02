@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 import type { Event } from "@/lib/supabase-types";
 import type { Map, Layer } from "leaflet";
 
@@ -9,7 +9,7 @@ interface EventMapProps {
   nearbyEvents?: Event[];
 }
 
-export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
+export const EventMap = memo(function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -125,8 +125,8 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
         }
 
         setIsLoaded(true);
-      } catch (error) {
-        console.error("Error loading map:", error);
+      } catch {
+        // Map failed to load - silently fail
       }
     };
 
@@ -165,4 +165,4 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
       </div>
     </div>
   );
-}
+});

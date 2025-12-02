@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, Calendar, MapPin, Loader2, RefreshCw } from "lucide-react";
+import { Sparkles, Calendar, MapPin, RefreshCw } from "lucide-react";
 import type { Event } from "@/lib/supabase-types";
+import { RecommendationCardSkeleton } from "@/components/ui/Skeleton";
 
 interface EventRecommendationsProps {
   bookedEvents: Event[];
   userId: string;
 }
 
-export function EventRecommendations({
+export const EventRecommendations = memo(function EventRecommendations({
   bookedEvents,
   userId,
 }: EventRecommendationsProps) {
@@ -84,9 +85,10 @@ export function EventRecommendations({
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-8">
-          <Loader2 size={24} className="animate-spin text-zinc-400" />
-          <span className="ml-2 text-zinc-400">Finding events for you...</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <RecommendationCardSkeleton key={i} />
+          ))}
         </div>
       ) : error ? (
         <div className="text-center py-6">
@@ -158,4 +160,4 @@ export function EventRecommendations({
       )}
     </div>
   );
-}
+});

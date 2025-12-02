@@ -4,19 +4,23 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import PillNav from "@/components/PillNav";
-import { EnhancedEventForm } from "@/components/EnhancedEventForm";
-import { EventChatbot } from "@/components/EventChatbot";
-import { EventMap } from "@/components/EventMap";
-import { useToast } from "@/components/Toast";
-import { ConfirmModal } from "@/components/ConfirmModal";
-import RSVPButton from "@/components/RSVPButton";
-import { trackRecentlyViewed } from "@/components/RecentlyViewed";
+import PillNav from "@/components/layout/PillNav";
+import { EnhancedEventForm } from "@/components/event-form/EnhancedEventForm";
+import { EventChatbot } from "@/components/events/EventChatbot";
+import { EventMap } from "@/components/events/EventMap";
+import { InlineErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { useToast } from "@/components/ui/Toast";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import RSVPButton from "@/components/events/RSVPButton";
+import { AttendeeAvatars } from "@/components/events/AttendeeAvatars";
+import { EventCountdown } from "@/components/ui/EventCountdown";
+import { trackRecentlyViewed } from "@/components/events/RecentlyViewed";
 import type { Event, CreateEventInput, EventPerformerData } from "@/lib/supabase-types";
-import { ArrowLeft, Calendar, MapPin, Edit2, Trash2, Clock, User, ExternalLink, Zap, X, Share2, LayoutDashboard, Eye } from "lucide-react";
-import { LoadingScreen } from "@/components/LoadingScreen";
+import { ArrowLeft, Calendar, MapPin, Edit2, Trash2, Clock, User, ExternalLink, Zap, X, Share2, LayoutDashboard, Eye, Download } from "lucide-react";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import Image from "next/image";
-import { EventOrganizerView } from "@/components/EventOrganizerView";
+import { EventOrganizerView } from "@/components/event-details/EventOrganizerView";
+import { downloadICS, addToGoogleCalendar } from "@/lib/calendar-export";
 
 const YOUTUBE_REGEX = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com|youtu\.be)\/(?:watch\?v=)?([a-zA-Z0-9_-]{11})/;
 
@@ -232,7 +236,7 @@ export default function EventDetailsPage() {
               src={event.event_banner_url}
               alt={event.event_name}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              className="object-cover group-hover:scale-105 transition-transform duration-300"
             />
           ) : (
             <div className="w-full h-full bg-linear-to-br from-green-900 via-zinc-900 to-zinc-950 flex items-center justify-center">
@@ -257,13 +261,14 @@ export default function EventDetailsPage() {
           <div className="absolute bottom-0 left-0 right-0 p-8 z-20">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
                   <span className="px-3 py-1 bg-green-600/90 text-white text-sm font-medium rounded-full">
                     {event.event_status}
                   </span>
                   <span className="px-3 py-1 bg-white/10 text-white text-sm font-medium rounded-full backdrop-blur">
                     {event.visibility_type === 'public' ? 'Public' : event.visibility_type === 'private' ? 'Private' : 'Invite Only'}
                   </span>
+                  <EventCountdown startDate={event.start_date} startTime={event.start_time} compact={false} />
                 </div>
                 <h1 className="text-5xl font-bold text-white leading-tight max-w-3xl">{event.event_name}</h1>
               </div>
@@ -272,8 +277,11 @@ export default function EventDetailsPage() {
         </div>
 
         {/* Action Buttons */}
-        <div className="max-w-6xl mx-auto px-6 py-4 flex gap-3 flex-wrap">
+        <div className="max-w-6xl mx-auto px-6 py-4 flex gap-3 flex-wrap items-center">
           {!isOwner && <RSVPButton eventId={event.id} />}
+          
+          {/* Attendee Avatars */}
+          <AttendeeAvatars eventId={event.id} maxDisplay={5} />
           
           {isOwner && (
             <>
@@ -319,28 +327,50 @@ export default function EventDetailsPage() {
         {/* Share Modal - Below buttons */}
         {showShareModal && (
           <div className="max-w-6xl mx-auto px-6 py-4">
-            <div className="bg-zinc-900/50 rounded-lg border border-zinc-700/50 backdrop-blur p-4">
-              <h3 className="text-white font-semibold mb-3">Share Event Link</h3>
-              
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={typeof window !== 'undefined' ? `${window.location.origin}/event/${eventId}` : ''}
-                  readOnly
-                  className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm"
-                />
-                <button
-                  onClick={() => {
-                    if (typeof window !== 'undefined') {
-                      navigator.clipboard.writeText(`${window.location.origin}/event/${eventId}`);
-                      setCopySuccess(true);
-                      setTimeout(() => setCopySuccess(false), 2000);
-                    }
-                  }}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors whitespace-nowrap"
-                >
-                  {copySuccess ? "Copied!" : "Copy"}
-                </button>
+            <div className="bg-zinc-900/50 rounded-lg border border-zinc-700/50 backdrop-blur p-4 space-y-4">
+              <div>
+                <h3 className="text-white font-semibold mb-3">Share Event Link</h3>
+                
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={typeof window !== 'undefined' ? `${window.location.origin}/event/${eventId}` : ''}
+                    readOnly
+                    className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-white text-sm"
+                  />
+                  <button
+                    onClick={() => {
+                      if (typeof window !== 'undefined') {
+                        navigator.clipboard.writeText(`${window.location.origin}/event/${eventId}`);
+                        setCopySuccess(true);
+                        setTimeout(() => setCopySuccess(false), 2000);
+                      }
+                    }}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm transition-colors whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    {copySuccess ? "Copied!" : "Copy"}
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t border-zinc-700/50 pt-4">
+                <h3 className="text-white font-semibold mb-3">Add to Calendar</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => downloadICS(event)}
+                    className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <Download size={16} />
+                    Download .ics
+                  </button>
+                  <button
+                    onClick={() => addToGoogleCalendar(event)}
+                    className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-green-500"
+                  >
+                    <Calendar size={16} />
+                    Google Calendar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -428,7 +458,9 @@ export default function EventDetailsPage() {
 
           {/* Map Section */}
           {event.venue_latitude && event.venue_longitude && (
-            <EventMap event={event} nearbyEvents={[]} />
+            <InlineErrorBoundary name="Map">
+              <EventMap event={event} nearbyEvents={[]} />
+            </InlineErrorBoundary>
           )}
 
           {/* Schedule Section */}

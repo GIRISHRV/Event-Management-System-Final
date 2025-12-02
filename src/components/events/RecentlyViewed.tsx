@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Clock, Calendar, ChevronRight } from "lucide-react";
@@ -12,7 +12,7 @@ interface RecentlyViewedProps {
   maxItems?: number;
 }
 
-export function RecentlyViewed({ userId, maxItems = 5 }: RecentlyViewedProps) {
+export const RecentlyViewed = memo(function RecentlyViewed({ userId, maxItems = 5 }: RecentlyViewedProps) {
   const [recentEvents, setRecentEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,8 +52,9 @@ export function RecentlyViewed({ userId, maxItems = 5 }: RecentlyViewedProps) {
           .filter((e): e is Event => e !== null && e !== undefined);
 
         setRecentEvents(orderedEvents);
-      } catch (error) {
-        console.error("Error fetching recently viewed:", error);
+      } catch {
+        // Failed to fetch - show empty state
+        setRecentEvents([]);
       } finally {
         setLoading(false);
       }
@@ -134,7 +135,7 @@ export function RecentlyViewed({ userId, maxItems = 5 }: RecentlyViewedProps) {
       )}
     </div>
   );
-}
+});
 
 // Helper function to track recently viewed events
 export async function trackRecentlyViewed(
@@ -171,7 +172,7 @@ export async function trackRecentlyViewed(
           oldEntries.map((e) => e.id)
         );
     }
-  } catch (error) {
-    console.error("Error tracking recently viewed:", error);
+  } catch {
+    // Silently fail tracking - non-critical feature
   }
 }

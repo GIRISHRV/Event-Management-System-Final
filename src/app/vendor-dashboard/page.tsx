@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import PillNav from "@/components/PillNav";
-import { LoadingScreen } from "@/components/LoadingScreen";
+import PillNav from "@/components/layout/PillNav";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
 export default function VendorDashboardPage() {
   const router = useRouter();

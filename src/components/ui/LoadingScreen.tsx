@@ -1,8 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import Squares from "./Squares";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
 
 interface LoadingScreenProps {
   message?: string;
@@ -10,29 +8,29 @@ interface LoadingScreenProps {
 }
 
 export function LoadingScreen({ message = "Loading...", isLoading = true }: LoadingScreenProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [shouldRender, setShouldRender] = useState(true);
+  const [isVisible, setIsVisible] = useState(isLoading);
+  const [shouldRender, setShouldRender] = useState(isLoading);
 
-  useGSAP(() => {
-    if (!isLoading) {
-      gsap.to(containerRef.current, {
-        opacity: 0,
-        duration: 0.8,
-        ease: "power2.inOut",
-        onComplete: () => setShouldRender(false)
-      });
-    } else {
+  useEffect(() => {
+    if (isLoading) {
       setShouldRender(true);
-      gsap.set(containerRef.current, { opacity: 1 });
+      // Small delay to ensure render before fade in
+      requestAnimationFrame(() => setIsVisible(true));
+    } else {
+      setIsVisible(false);
+      // Wait for fade out animation to complete before unmounting
+      const timer = setTimeout(() => setShouldRender(false), 400);
+      return () => clearTimeout(timer);
     }
-  }, { dependencies: [isLoading] });
+  }, [isLoading]);
 
   if (!shouldRender) return null;
 
   return (
     <div 
-      ref={containerRef} 
-      className="fixed inset-0 z-100 bg-zinc-950 flex items-center justify-center overflow-hidden"
+      className={`fixed inset-0 z-100 bg-zinc-950 flex items-center justify-center overflow-hidden transition-opacity duration-400 ease-in-out ${
+        isVisible ? "opacity-100" : "opacity-0"
+      }`}
     >
       <div className="absolute inset-0 z-0">
         <Squares

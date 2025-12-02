@@ -5,13 +5,13 @@ import { eventSchema, EventFormSchema } from "@/lib/schemas";
 import { X, FileText, MapPin, Clock, ImageIcon, HelpCircle, Sparkles, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Event, CreateEventInput } from "@/lib/supabase-types";
-import { useToast } from "@/components/Toast";
+import { useToast } from "@/components/ui/Toast";
 import { AIEventData, EventFormData, FormTab } from "@/types/events";
-import { BasicInfoTab } from "./event-form/BasicInfoTab";
-import { VenueTab } from "./event-form/VenueTab";
-import { ScheduleTab } from "./event-form/ScheduleTab";
-import { GalleryTab } from "./event-form/GalleryTab";
-import { FaqsTab } from "./event-form/FaqsTab";
+import { BasicInfoTab } from "./BasicInfoTab";
+import { VenueTab } from "./VenueTab";
+import { ScheduleTab } from "./ScheduleTab";
+import { GalleryTab } from "./GalleryTab";
+import { FaqsTab } from "./FaqsTab";
 
 interface EnhancedEventFormProps {
   event?: Event;

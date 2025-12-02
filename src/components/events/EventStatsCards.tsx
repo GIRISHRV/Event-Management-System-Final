@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, memo } from "react";
 import { Calendar, Users, TrendingUp } from "lucide-react";
 import type { Event } from "@/lib/supabase-types";
 
@@ -9,7 +9,7 @@ interface EventStatsCardsProps {
   bookedEvents: Event[];
 }
 
-export function EventStatsCards({
+export const EventStatsCards = memo(function EventStatsCards({
   myEvents,
   bookedEvents,
 }: EventStatsCardsProps) {
@@ -85,4 +85,4 @@ export function EventStatsCards({
       </div>
     </div>
   );
-}
+});

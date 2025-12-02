@@ -4,20 +4,22 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { Plus, Calendar, Globe, Ticket } from "lucide-react";
-import { EnhancedEventForm } from "@/components/EnhancedEventForm";
-import { EventListWithActions } from "@/components/EventListWithActions";
-import { PublicEventListWithFavorites } from "@/components/PublicEventListWithFavorites";
-import { EventStatsCards } from "@/components/EventStatsCards";
-import { UpcomingEventBanner } from "@/components/UpcomingEventBanner";
-import { RecentlyViewed } from "@/components/RecentlyViewed";
-import { EventRecommendations } from "@/components/EventRecommendations";
+import { Plus, Calendar, Globe, Ticket, LayoutGrid, CalendarDays, Map } from "lucide-react";
+import { EnhancedEventForm } from "@/components/event-form/EnhancedEventForm";
+import { EventListWithActions } from "@/components/events/EventListWithActions";
+import { PublicEventListWithFavorites } from "@/components/events/PublicEventListWithFavorites";
+import { UpcomingEventBanner } from "@/components/events/UpcomingEventBanner";
+import { RecentlyViewed } from "@/components/events/RecentlyViewed";
+import { EventRecommendations } from "@/components/events/EventRecommendations";
+import { EventCalendarView } from "@/components/events/EventCalendarView";
+import { EventMapCluster } from "@/components/events/EventMapCluster";
 import type { Event, CreateEventInput } from "@/lib/supabase-types";
 import { logError, getErrorMessage } from "@/lib/error-handler";
-import Squares from "@/components/Squares";
-import PillNav from "@/components/PillNav";
-import { useToast } from "@/components/Toast";
-import { LoadingScreen } from "@/components/LoadingScreen";
+import Squares from "@/components/ui/Squares";
+import PillNav from "@/components/layout/PillNav";
+import { useToast } from "@/components/ui/Toast";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { InlineErrorBoundary } from "@/components/ui/ErrorBoundary";
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
@@ -25,12 +27,13 @@ export default function CustomerDashboardPage() {
   const { error: toastError, success: toastSuccess, Toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
   const [bookedEvents, setBookedEvents] = useState<Event[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(false);
-  const [bookedEventsLoading, setBookedEventsLoading] = useState(false);
+  const [eventsLoading, setEventsLoading] = useState(true); // Start true to show skeleton until data loads
+  const [bookedEventsLoading, setBookedEventsLoading] = useState(true); // Start true
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<'my-events' | 'attending' | 'discover'>('my-events');
+  const [viewMode, setViewMode] = useState<'grid' | 'calendar' | 'map'>('grid');
 
   // Get the next upcoming event
   const nextUpcomingEvent = useMemo(() => {
@@ -161,8 +164,12 @@ export default function CustomerDashboardPage() {
     if (session?.user) {
       void fetchEvents();
       void fetchBookedEvents();
+    } else if (!loading) {
+      // No session and auth loading is done - stop showing skeletons
+      setEventsLoading(false);
+      setBookedEventsLoading(false);
     }
-  }, [session?.user, fetchEvents, fetchBookedEvents]);
+  }, [session?.user, loading, fetchEvents, fetchBookedEvents]);
 
   const handleCreateEvent = async (data: CreateEventInput) => {
     if (!session?.user) return;
@@ -377,10 +384,10 @@ export default function CustomerDashboardPage() {
             </div>
 
             {/* Tab Navigation */}
-            <div className="flex space-x-1 mb-8 bg-zinc-800/60 backdrop-blur-md rounded-xl p-1 border border-zinc-700/50 shadow-lg">
+            <div className="flex space-x-1 mb-4 bg-zinc-800/60 backdrop-blur-md rounded-xl p-1 border border-zinc-700/50 shadow-lg">
               <button
                 onClick={() => setActiveTab('my-events')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset ${
                   activeTab === 'my-events'
                     ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
                     : 'text-zinc-400 hover:text-white hover:bg-white/30'
@@ -391,7 +398,7 @@ export default function CustomerDashboardPage() {
               </button>
               <button
                 onClick={() => setActiveTab('attending')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset ${
                   activeTab === 'attending'
                     ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
                     : 'text-zinc-400 hover:text-white hover:bg-white/30'
@@ -402,7 +409,7 @@ export default function CustomerDashboardPage() {
               </button>
               <button
                 onClick={() => setActiveTab('discover')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset ${
                   activeTab === 'discover'
                     ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
                     : 'text-zinc-400 hover:text-white hover:bg-white/30'
@@ -413,57 +420,113 @@ export default function CustomerDashboardPage() {
               </button>
             </div>
 
-            {/* Stats Cards - Show on My Events tab */}
-            {activeTab === 'my-events' && (
-              <EventStatsCards
-                myEvents={events}
-                bookedEvents={bookedEvents}
-              />
-            )}
+            {/* View Mode Toggle */}
+            <div className="flex justify-end mb-4">
+              <div className="flex bg-zinc-800/60 backdrop-blur-md rounded-lg p-1 border border-zinc-700/50">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-2 rounded-md transition ${
+                    viewMode === 'grid'
+                      ? 'bg-green-600 text-white'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                  }`}
+                  title="Grid View"
+                >
+                  <LayoutGrid size={18} />
+                </button>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className={`p-2 rounded-md transition ${
+                    viewMode === 'calendar'
+                      ? 'bg-green-600 text-white'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                  }`}
+                  title="Calendar View"
+                >
+                  <CalendarDays size={18} />
+                </button>
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`p-2 rounded-md transition ${
+                    viewMode === 'map'
+                      ? 'bg-green-600 text-white'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
+                  }`}
+                  title="Map View"
+                >
+                  <Map size={18} />
+                </button>
+              </div>
+            </div>
 
             {/* Upcoming Event Banner - Show on My Events and Attending tabs */}
             {(activeTab === 'my-events' || activeTab === 'attending') && nextUpcomingEvent && (
-              <UpcomingEventBanner event={nextUpcomingEvent} />
+              <InlineErrorBoundary name="Upcoming Event">
+                <UpcomingEventBanner event={nextUpcomingEvent} />
+              </InlineErrorBoundary>
             )}
 
             {/* Recently Viewed - Show on Discover tab */}
             {activeTab === 'discover' && session?.user?.id && (
-              <RecentlyViewed userId={session.user.id} />
+              <InlineErrorBoundary name="Recently Viewed">
+                <RecentlyViewed userId={session.user.id} />
+              </InlineErrorBoundary>
             )}
 
             {/* Event Recommendations - Show on Discover tab */}
             {activeTab === 'discover' && session?.user?.id && (
-              <EventRecommendations
-                bookedEvents={bookedEvents}
-                userId={session.user.id}
-              />
+              <InlineErrorBoundary name="Recommendations">
+                <EventRecommendations
+                  bookedEvents={bookedEvents}
+                  userId={session.user.id}
+                />
+              </InlineErrorBoundary>
             )}
 
             {/* Tab Content */}
-            <div className="mb-8 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-zinc-700 p-6">
-              {activeTab === 'my-events' ? (
-                <EventListWithActions
-                  events={events}
-                  isLoading={eventsLoading}
-                  showSearch={true}
-                  showQuickActions={true}
-                  type="my-events"
-                  onEdit={handleEditEvent}
-                  onDelete={handleDeleteEvent}
-                  onCreateNew={() => setShowForm(true)}
+            <div className="mb-8 bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-zinc-700 p-6">
+              {/* Calendar View */}
+              {viewMode === 'calendar' && (
+                <EventCalendarView
+                  events={activeTab === 'my-events' ? events : activeTab === 'attending' ? bookedEvents : [...events, ...bookedEvents]}
                 />
-              ) : activeTab === 'attending' ? (
-                <EventListWithActions
-                  events={bookedEvents}
-                  isLoading={bookedEventsLoading}
-                  showSearch={true}
-                  showQuickActions={true}
-                  type="attending"
-                  onDiscoverEvents={() => setActiveTab('discover')}
+              )}
+
+              {/* Map View */}
+              {viewMode === 'map' && (
+                <EventMapCluster
+                  events={activeTab === 'my-events' ? events : activeTab === 'attending' ? bookedEvents : [...events, ...bookedEvents]}
                 />
-              ) : activeTab === 'discover' ? (
-                <PublicEventListWithFavorites userId={session.user.id} />
-              ) : null}
+              )}
+
+              {/* Grid View - Default */}
+              {viewMode === 'grid' && (
+                <>
+                  {activeTab === 'my-events' ? (
+                    <EventListWithActions
+                      events={events}
+                      isLoading={eventsLoading}
+                      showSearch={true}
+                      showQuickActions={true}
+                      type="my-events"
+                      onEdit={handleEditEvent}
+                      onDelete={handleDeleteEvent}
+                      onCreateNew={() => setShowForm(true)}
+                    />
+                  ) : activeTab === 'attending' ? (
+                    <EventListWithActions
+                      events={bookedEvents}
+                      isLoading={bookedEventsLoading}
+                      showSearch={true}
+                      showQuickActions={true}
+                      type="attending"
+                      onDiscoverEvents={() => setActiveTab('discover')}
+                    />
+                  ) : activeTab === 'discover' ? (
+                    <PublicEventListWithFavorites userId={session.user.id} />
+                  ) : null}
+                </>
+              )}
             </div>
           </div>
 

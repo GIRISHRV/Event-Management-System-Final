@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
-import PillNav from "@/components/PillNav";
-import { useToast } from "@/components/Toast";
+import PillNav from "@/components/layout/PillNav";
+import { useToast } from "@/components/ui/Toast";
 
 type Role = "customer" | "vendor";
 
