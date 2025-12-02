@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Globe, Calendar, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
 import { getPublicEvents } from "@/lib/events";
 import type { EventWithAttendeeInfo } from "@/lib/supabase-types";
 import { SkeletonCard } from "./SkeletonCard";
@@ -26,16 +24,24 @@ export function PublicEventList({}: PublicEventListProps) {
   const [uniqueLocations, setUniqueLocations] = useState<string[]>([]);
   
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastAnimatedPage = useRef<number>(-1);
 
-  useGSAP(() => {
-    if (!loading && events.length > 0) {
-      gsap.fromTo(
-        ".public-event-card",
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
-      );
+  // Dynamic GSAP import for better bundle splitting
+  useEffect(() => {
+    if (!loading && events.length > 0 && lastAnimatedPage.current !== currentPage) {
+      lastAnimatedPage.current = currentPage;
+      
+      // Dynamic import GSAP only when needed
+      import("gsap").then((gsapModule) => {
+        const gsap = gsapModule.default;
+        gsap.fromTo(
+          ".public-event-card",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
+        );
+      });
     }
-  }, { dependencies: [loading, currentPage, events] }); // Re-run on page change
+  }, [loading, currentPage, events]);
 
   useEffect(() => {
     fetchEvents();

@@ -4,8 +4,6 @@ import { useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
 import type { Event } from "@/lib/supabase-types";
 import { SkeletonCard } from "./SkeletonCard";
 
@@ -19,16 +17,26 @@ export function EventList({
   isLoading = false,
 }: EventListProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const animatedRef = useRef(false);
 
-  useGSAP(() => {
-    if (!isLoading && events.length > 0) {
-      gsap.fromTo(
-        ".event-card",
-        { opacity: 0, y: 20 },
-        { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
-      );
+  // Dynamic GSAP import for better bundle splitting
+  useEffect(() => {
+    if (!isLoading && events.length > 0 && !animatedRef.current) {
+      animatedRef.current = true;
+      
+      // Dynamic import GSAP only when needed
+      Promise.all([
+        import("gsap"),
+      ]).then(([gsapModule]) => {
+        const gsap = gsapModule.default;
+        gsap.fromTo(
+          ".event-card",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
+        );
+      });
     }
-  }, { dependencies: [isLoading, events] });
+  }, [isLoading, events]);
 
   if (isLoading) {
     return (

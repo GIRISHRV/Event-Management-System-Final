@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useMemo } from "react";
 import { useForm, SubmitHandler, Path } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { eventSchema, EventFormSchema } from "@/lib/schemas";
@@ -106,9 +106,9 @@ export function EnhancedEventForm({
     expandedChanges: {} as Record<string, boolean>,
   });
 
-  const updateUiState = (updates: Partial<typeof uiState>) => {
+  const updateUiState = useCallback((updates: Partial<typeof uiState>) => {
     setUiState(prev => ({ ...prev, ...updates }));
-  };
+  }, []);
 
   // Helper to normalize text for comparison (removes extra spaces, trailing dots, etc.)
   const normalizeText = (text: string | undefined | null) => {
@@ -351,8 +351,8 @@ export function EnhancedEventForm({
     });
   };
 
-  // Generic upload handler
-  const handleFileUpload = async (file: File, bucket: string = 'event-banners'): Promise<string | null> => {
+  // Generic upload handler - memoized for performance
+  const handleFileUpload = useCallback(async (file: File, bucket: string = 'event-banners'): Promise<string | null> => {
     if (!file) return null;
 
     try {
@@ -377,9 +377,9 @@ export function EnhancedEventForm({
     } finally {
       updateUiState({ isUploading: false });
     }
-  };
+  }, [updateUiState]);
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -387,9 +387,9 @@ export function EnhancedEventForm({
     if (url) {
       setValue('eventBannerUrl', url, { shouldValidate: true, shouldDirty: true });
     }
-  };
+  }, [handleFileUpload, setValue]);
 
-  const handleLocationSelect = (location: {
+  const handleLocationSelect = useCallback((location: {
     lat: number;
     lng: number;
     address?: string;
@@ -406,7 +406,7 @@ export function EnhancedEventForm({
     if (location.venue_name) setValue('venueName', location.venue_name, { shouldValidate: true, shouldDirty: true });
     if (location.venue_city) setValue('venueCity', location.venue_city, { shouldValidate: true, shouldDirty: true });
     if (location.venue_landmark) setValue('venueLandmark', location.venue_landmark, { shouldValidate: true, shouldDirty: true });
-  };
+  }, [setValue]);
 
   const handleAIParseInstructions = async () => {
     if (!uiState.aiInstructions.trim()) {
@@ -684,13 +684,14 @@ export function EnhancedEventForm({
     }
   };
 
-  const tabs = [
+  // Memoized tabs configuration to prevent unnecessary re-renders
+  const tabs = useMemo(() => [
     { id: 'basic' as FormTab, label: 'Basic Info', icon: FileText },
     { id: 'venue' as FormTab, label: 'Venue & Location *', icon: MapPin },
     { id: 'schedule-lineup' as FormTab, label: 'Schedule & Performers', icon: Clock },
     { id: 'gallery' as FormTab, label: 'Gallery', icon: ImageIcon },
     { id: 'faqs' as FormTab, label: 'FAQs', icon: HelpCircle },
-  ];
+  ], []);
 
   return (
     <div className="space-y-6">

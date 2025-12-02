@@ -1,7 +1,52 @@
-import React from 'react';
-import { Plus, Trash2, Upload } from 'lucide-react';
+import React, { useState, memo, useCallback, useMemo } from 'react';
+import { Plus, Trash2, Upload, ImageOff } from 'lucide-react';
 import { UseFormWatch, UseFormSetValue } from 'react-hook-form';
 import { EventFormSchema } from '@/lib/schemas';
+import Image from 'next/image';
+
+// Memoized gallery image item for performance
+const GalleryImageItem = memo(function GalleryImageItem({
+  image,
+  index,
+  onRemove,
+}: {
+  image: string;
+  index: number;
+  onRemove: (index: number) => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  const handleRemove = useCallback(() => {
+    onRemove(index);
+  }, [onRemove, index]);
+
+  return (
+    <div className="relative group">
+      {hasError ? (
+        <div className="w-full h-32 flex items-center justify-center bg-zinc-800 rounded-lg border border-zinc-600">
+          <ImageOff className="w-8 h-8 text-zinc-500" />
+        </div>
+      ) : (
+        <Image
+          src={image}
+          alt={`Gallery ${index + 1}`}
+          width={256}
+          height={128}
+          className="w-full h-32 object-cover rounded-lg border border-zinc-600 cursor-pointer hover:opacity-80 transition-opacity"
+          onError={() => setHasError(true)}
+          unoptimized={image.startsWith('data:') || image.startsWith('blob:')}
+        />
+      )}
+      <button
+        type="button"
+        onClick={handleRemove}
+        className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+});
 
 interface GalleryTabProps {
   watch: UseFormWatch<EventFormSchema>;
@@ -22,28 +67,32 @@ export function GalleryTab({
   galleryImageInputRef,
   galleryVideoInputRef,
 }: GalleryTabProps) {
-  const galleryImages = watch('galleryImages') || [];
-  const galleryVideos = watch('galleryVideos') || [];
+  const watchedGalleryImages = watch('galleryImages');
+  const watchedGalleryVideos = watch('galleryVideos');
+  
+  // Memoize arrays to prevent useCallback dependency issues
+  const galleryImages = useMemo(() => watchedGalleryImages || [], [watchedGalleryImages]);
+  const galleryVideos = useMemo(() => watchedGalleryVideos || [], [watchedGalleryVideos]);
 
-  const addImage = (url: string) => {
+  const addImage = useCallback((url: string) => {
     if (url.trim()) {
       setValue('galleryImages', [...galleryImages, url.trim()], { shouldValidate: true, shouldDirty: true });
     }
-  };
+  }, [galleryImages, setValue]);
 
-  const removeImage = (index: number) => {
+  const removeImage = useCallback((index: number) => {
     setValue('galleryImages', galleryImages.filter((_, i) => i !== index), { shouldValidate: true, shouldDirty: true });
-  };
+  }, [galleryImages, setValue]);
 
-  const addVideo = (url: string) => {
+  const addVideo = useCallback((url: string) => {
     if (url.trim()) {
       setValue('galleryVideos', [...galleryVideos, url.trim()], { shouldValidate: true, shouldDirty: true });
     }
-  };
+  }, [galleryVideos, setValue]);
 
-  const removeVideo = (index: number) => {
+  const removeVideo = useCallback((index: number) => {
     setValue('galleryVideos', galleryVideos.filter((_, i) => i !== index), { shouldValidate: true, shouldDirty: true });
-  };
+  }, [galleryVideos, setValue]);
 
   return (
     <div className="space-y-6">
@@ -101,29 +150,14 @@ export function GalleryTab({
           </div>
           {galleryImages.length > 0 && (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {galleryImages.map((image, index) => {
-                return (
-                  <div key={index} className="relative group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={image}
-                      alt={`Gallery ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border border-zinc-600 cursor-pointer hover:opacity-80 transition-opacity"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="128" height="128"%3E%3Crect fill="%23333" width="128" height="128"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%23999" font-size="14"%3EImage Error%3C/text%3E%3C/svg%3E';
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                );
-              })}
+              {galleryImages.map((image, index) => (
+                <GalleryImageItem
+                  key={index}
+                  image={image}
+                  index={index}
+                  onRemove={removeImage}
+                />
+              ))}
             </div>
           )}
         </div>
