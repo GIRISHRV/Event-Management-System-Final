@@ -185,8 +185,8 @@ export function OpenMapLocationPicker({
   }, [reverseGeocode]);
 
   // Handle search form submission
-  const handleSearchSubmit = (e?: any) => {
-    e.preventDefault();
+  const handleSearchSubmit = (e?: React.FormEvent | React.KeyboardEvent) => {
+    e?.preventDefault();
     searchLocation();
   };
 

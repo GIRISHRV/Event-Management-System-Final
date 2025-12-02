@@ -56,7 +56,6 @@ export default function RSVPButton({ eventId }: RSVPButtonProps) {
     setLoading(true);
     try {
       if (booking) {
-        console.log('Attempting to delete booking:', booking.id);
         // Cancel booking
         const { error } = await supabase
           .from('bookings')
@@ -65,11 +64,9 @@ export default function RSVPButton({ eventId }: RSVPButtonProps) {
         
         if (error) throw error;
         
-        console.log('Booking deleted successfully');
         setBooking(null);
         success('RSVP cancelled successfully');
       } else {
-        console.log('Attempting to create booking');
         // Create booking
         const { data, error } = await supabase
           .from('bookings')
@@ -83,13 +80,12 @@ export default function RSVPButton({ eventId }: RSVPButtonProps) {
         
         if (error) throw error;
         
-        console.log('Booking created successfully:', data);
         setBooking(data);
         success('Request sent! Added to waitlist.');
       }
     } catch (error) {
-      console.error('Error updating RSVP:', JSON.stringify(error, null, 2));
-      toastError('Failed to update RSVP status');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toastError(`Failed to update RSVP: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

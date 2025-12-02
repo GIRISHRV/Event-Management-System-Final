@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useMemo } from "react";
-import { useForm, SubmitHandler, Path } from "react-hook-form";
+import { useForm, SubmitHandler, Path, Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { eventSchema, EventFormSchema } from "@/lib/schemas";
 import { X, FileText, MapPin, Clock, ImageIcon, HelpCircle, Sparkles, Loader2 } from "lucide-react";
@@ -39,9 +39,10 @@ export function EnhancedEventForm({
   const { error: toastError, success: toastSuccess, Toast } = useToast();
 
   // React Hook Form Setup
+  // Note: Type cast needed due to react-hook-form + @hookform/resolvers type mismatch
+  // See: https://github.com/react-hook-form/resolvers/issues/271
   const form = useForm<EventFormSchema>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    resolver: zodResolver(eventSchema) as any,
+    resolver: zodResolver(eventSchema) as unknown as Resolver<EventFormSchema>,
     defaultValues: {
       eventName: event?.event_name || "",
       eventDescription: event?.event_description || "",
@@ -346,8 +347,7 @@ export function EnhancedEventForm({
     }
 
     Object.entries(updates).forEach(([key, value]) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setValue(key as Path<EventFormSchema>, value as any, { shouldValidate: true, shouldDirty: true });
+      setValue(key as Path<EventFormSchema>, value as EventFormSchema[keyof EventFormSchema], { shouldValidate: true, shouldDirty: true });
     });
   };
 
@@ -695,29 +695,6 @@ export function EnhancedEventForm({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">
-          {event ? 'Edit Event' : 'Create New Event'}
-        </h2>
-        <div className="flex items-center gap-3">
-          {!uiState.showAIInput && (
-            <button
-              type="button"
-              onClick={() => updateUiState({ showAIInput: true })}
-              className="flex items-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
-            >
-              <Sparkles size={16} />
-              {event ? 'AI Edit Mode' : 'AI Create Mode'}
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-zinc-700 rounded-lg transition-colors"
-          >
-            <X size={20} className="text-gray-400" />
-          </button>
-        </div>
-      </div>
 
       {/* AI Instructions Input (for both create and edit) */}
       {uiState.showAIInput && (
@@ -976,8 +953,7 @@ export function EnhancedEventForm({
                               <div className="text-green-400 text-xs mb-2">New ({change.new} items):</div>
                               <pre className="text-xs text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto">
                                 {JSON.stringify(
-                                  // @ts-expect-error - Dynamic access to potentially undefined property
-                                  uiState.pendingChanges?.data[field] || [],
+                                  (uiState.pendingChanges?.data as Record<string, unknown>)?.[field] || [],
                                   null,
                                   2
                                 )}
@@ -1034,27 +1010,41 @@ export function EnhancedEventForm({
 
       {/* Tab Navigation */}
       <div className="border-b border-zinc-700">
-        <nav className="-mb-px flex space-x-8 overflow-x-auto">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => {
-                  setCurrentTab(tab.id);
-                }}
-                className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                  currentTab === tab.id
-                    ? 'border-green-500 text-green-400'
-                    : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
-                }`}
-              >
-                <Icon size={16} />
-                {tab.label}
-              </button>
-            );
-          })}
+        <nav className="-mb-px flex items-center justify-between overflow-x-auto">
+          <div className="flex space-x-8">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    setCurrentTab(tab.id);
+                  }}
+                  className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
+                    currentTab === tab.id
+                      ? 'border-green-500 text-green-400'
+                      : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon size={16} />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+          
+          {/* AI Mode Button */}
+          {!uiState.showAIInput && (
+            <button
+              type="button"
+              onClick={() => updateUiState({ showAIInput: true })}
+              className="flex items-center gap-2 px-3 py-2 mb-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors shrink-0"
+            >
+              <Sparkles size={16} />
+              {event ? 'AI Edit' : 'AI Create'}
+            </button>
+          )}
         </nav>
       </div>
 

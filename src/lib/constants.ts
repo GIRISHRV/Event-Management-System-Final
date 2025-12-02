@@ -22,6 +22,7 @@ export const VENUE_TYPES = {
 } as const;
 
 export const DEFAULT_COORDINATES = {
-  lat: 51.505,
-  lng: -0.09,
+  // Default to India (central location)
+  lat: 20.5937,
+  lng: 78.9629,
 };

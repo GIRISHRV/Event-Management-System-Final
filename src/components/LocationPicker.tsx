@@ -183,7 +183,7 @@ export function LocationPicker({ onLocationSelect, initialLocation, apiKey }: Lo
     });
   };
 
-  const render = (status: any) => {
+  const render = (status: "LOADING" | "FAILURE" | "SUCCESS") => {
     if (status === "LOADING") return <div className="h-64 bg-zinc-800 rounded-lg animate-pulse flex items-center justify-center text-white">Loading Maps...</div>;
     if (status === "FAILURE") return <div className="h-64 bg-zinc-800 rounded-lg flex items-center justify-center text-red-400">Failed to load maps</div>;
     return (

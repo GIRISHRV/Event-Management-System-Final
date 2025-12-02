@@ -50,8 +50,7 @@ export function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
 
         // Clear existing markers
         mapRef.current?.eachLayer((layer: Layer) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if ((layer as any)._icon) { // Marker has _icon property
+          if ('_icon' in layer) { // Marker has _icon property
             mapRef.current?.removeLayer(layer);
           }
         });

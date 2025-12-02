@@ -11,6 +11,7 @@ import { EventMap } from "@/components/EventMap";
 import { useToast } from "@/components/Toast";
 import { ConfirmModal } from "@/components/ConfirmModal";
 import RSVPButton from "@/components/RSVPButton";
+import { trackRecentlyViewed } from "@/components/RecentlyViewed";
 import type { Event, CreateEventInput, EventPerformerData } from "@/lib/supabase-types";
 import { ArrowLeft, Calendar, MapPin, Edit2, Trash2, Clock, User, ExternalLink, Zap, X, Share2, LayoutDashboard, Eye } from "lucide-react";
 import { LoadingScreen } from "@/components/LoadingScreen";
@@ -107,6 +108,13 @@ export default function EventDetailsPage() {
       fetchEvent();
     }
   }, [eventId, fetchEvent]);
+
+  // Track recently viewed event
+  useEffect(() => {
+    if (event && session?.user?.id) {
+      trackRecentlyViewed(session.user.id, event.id);
+    }
+  }, [event, session?.user?.id]);
 
   const handleEdit = () => {
     setIsEditing(true);

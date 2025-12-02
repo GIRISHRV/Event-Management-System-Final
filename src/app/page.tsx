@@ -8,7 +8,6 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useEffect, useState } from "react";
 import type { Event } from "@/lib/supabase-types";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import PillNav from "@/components/PillNav";
 
 export default function Home() {

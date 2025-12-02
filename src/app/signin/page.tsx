@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
+import { Eye, EyeOff, ArrowLeft, Loader2 } from "lucide-react";
 import PillNav from "@/components/PillNav";
 
 export default function SignInPage() {
@@ -80,7 +79,7 @@ export default function SignInPage() {
           router.push("/customer-dashboard");
         }
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred");
       // console.error(err);
     } finally {
@@ -102,12 +101,6 @@ export default function SignInPage() {
         activeHref="/signin"
         showAuth={false}
       />
-      <div className="flex items-center justify-between px-6 py-4 max-w-7xl mx-auto">
-        <Link href="/" className="text-2xl font-bold text-green-700 dark:text-green-500 hover:text-green-800 dark:hover:text-green-400 transition">
-          EMS (WIP)
-        </Link>
-        <ThemeToggle />
-      </div>
 
       {/* Form Container */}
       <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4">
@@ -168,9 +161,16 @@ export default function SignInPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2 bg-green-700 dark:bg-green-600 text-white rounded-lg font-medium hover:bg-green-800 dark:hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full py-2 bg-green-700 dark:bg-green-600 text-white rounded-lg font-medium hover:bg-green-800 dark:hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {loading ? "Signing in..." : "Sign In"}
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </button>
           </form>
 

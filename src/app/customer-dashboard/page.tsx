@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Plus, Calendar, Globe, Ticket } from "lucide-react";
 import { EnhancedEventForm } from "@/components/EnhancedEventForm";
-import { EventList } from "@/components/EventList";
-import { PublicEventList } from "@/components/PublicEventList";
+import { EventListWithActions } from "@/components/EventListWithActions";
+import { PublicEventListWithFavorites } from "@/components/PublicEventListWithFavorites";
+import { EventStatsCards } from "@/components/EventStatsCards";
+import { UpcomingEventBanner } from "@/components/UpcomingEventBanner";
+import { RecentlyViewed } from "@/components/RecentlyViewed";
+import { EventRecommendations } from "@/components/EventRecommendations";
 import type { Event, CreateEventInput } from "@/lib/supabase-types";
 import { logError, getErrorMessage } from "@/lib/error-handler";
 import Squares from "@/components/Squares";
@@ -18,14 +22,28 @@ import { LoadingScreen } from "@/components/LoadingScreen";
 export default function CustomerDashboardPage() {
   const router = useRouter();
   const { session, userProfile, loading, signOut } = useAuth();
-  const { error: toastError, Toast } = useToast();
+  const { error: toastError, success: toastSuccess, Toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
   const [bookedEvents, setBookedEvents] = useState<Event[]>([]);
   const [eventsLoading, setEventsLoading] = useState(false);
   const [bookedEventsLoading, setBookedEventsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<Event | undefined>(undefined);
   const [activeTab, setActiveTab] = useState<'my-events' | 'attending' | 'discover'>('my-events');
+
+  // Get the next upcoming event
+  const nextUpcomingEvent = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Combine created and booked events, sort by date
+    const allEvents = [...events, ...bookedEvents]
+      .filter(e => new Date(e.start_date) >= today)
+      .sort((a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime());
+    
+    return allEvents[0] || null;
+  }, [events, bookedEvents]);
 
   // Protect route - redirect if not customer
   // Only redirect if: loading is done AND (no session OR not a customer)
@@ -41,7 +59,7 @@ export default function CustomerDashboardPage() {
     }
   }, [session, userProfile, loading, router]);
 
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     if (!session?.user) return;
 
     setEventsLoading(true);
@@ -66,9 +84,6 @@ export default function CustomerDashboardPage() {
         .order("created_at", { ascending: false });
 
       if (error) {
-        console.error("Supabase error details:", error);
-        console.error("Error code:", error.code);
-        console.error("Error message:", error.message);
         throw error;
       }
       
@@ -94,9 +109,9 @@ export default function CustomerDashboardPage() {
     } finally {
       setEventsLoading(false);
     }
-  };
+  }, [session?.user, toastError]);
 
-  const fetchBookedEvents = async () => {
+  const fetchBookedEvents = useCallback(async () => {
     if (!session?.user) return;
 
     setBookedEventsLoading(true);
@@ -140,15 +155,14 @@ export default function CustomerDashboardPage() {
     } finally {
       setBookedEventsLoading(false);
     }
-  };
+  }, [session?.user, toastError]);
 
   useEffect(() => {
     if (session?.user) {
       void fetchEvents();
       void fetchBookedEvents();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.user?.id]);
+  }, [session?.user, fetchEvents, fetchBookedEvents]);
 
   const handleCreateEvent = async (data: CreateEventInput) => {
     if (!session?.user) return;
@@ -246,6 +260,57 @@ export default function CustomerDashboardPage() {
 
   const handleCloseForm = () => {
     setShowForm(false);
+    setEditingEvent(undefined);
+  };
+
+  const handleEditEvent = (event: Event) => {
+    setEditingEvent(event);
+    setShowForm(true);
+  };
+
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      const { error } = await supabase
+        .from("events")
+        .delete()
+        .eq("id", eventId)
+        .eq("user_email", session?.user?.email);
+
+      if (error) throw error;
+
+      toastSuccess("Event deleted successfully");
+      await fetchEvents();
+    } catch (err) {
+      logError("deleteEvent", err);
+      toastError(getErrorMessage(err));
+    }
+  };
+
+  const handleUpdateEvent = async (data: CreateEventInput) => {
+    if (!session?.user || !editingEvent) return;
+
+    setFormLoading(true);
+    try {
+      const { error } = await supabase
+        .from("events")
+        .update({
+          ...data,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingEvent.id)
+        .eq("user_email", session.user.email);
+
+      if (error) throw error;
+
+      toastSuccess("Event updated successfully");
+      setShowForm(false);
+      setEditingEvent(undefined);
+      await fetchEvents();
+    } catch (err) {
+      throw err;
+    } finally {
+      setFormLoading(false);
+    }
   };
 
   const navItems = [
@@ -300,6 +365,7 @@ export default function CustomerDashboardPage() {
               {activeTab === 'my-events' && (
                 <button
                   onClick={() => {
+                    setEditingEvent(undefined);
                     setShowForm(true);
                   }}
                   className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2"
@@ -347,48 +413,57 @@ export default function CustomerDashboardPage() {
               </button>
             </div>
 
+            {/* Stats Cards - Show on My Events tab */}
+            {activeTab === 'my-events' && (
+              <EventStatsCards
+                myEvents={events}
+                bookedEvents={bookedEvents}
+              />
+            )}
+
+            {/* Upcoming Event Banner - Show on My Events and Attending tabs */}
+            {(activeTab === 'my-events' || activeTab === 'attending') && nextUpcomingEvent && (
+              <UpcomingEventBanner event={nextUpcomingEvent} />
+            )}
+
+            {/* Recently Viewed - Show on Discover tab */}
+            {activeTab === 'discover' && session?.user?.id && (
+              <RecentlyViewed userId={session.user.id} />
+            )}
+
+            {/* Event Recommendations - Show on Discover tab */}
+            {activeTab === 'discover' && session?.user?.id && (
+              <EventRecommendations
+                bookedEvents={bookedEvents}
+                userId={session.user.id}
+              />
+            )}
+
             {/* Tab Content */}
             <div className="mb-8 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-gray-200 dark:border-zinc-700 p-6">
               {activeTab === 'my-events' ? (
-                <EventList
+                <EventListWithActions
                   events={events}
                   isLoading={eventsLoading}
+                  showSearch={true}
+                  showQuickActions={true}
+                  type="my-events"
+                  onEdit={handleEditEvent}
+                  onDelete={handleDeleteEvent}
+                  onCreateNew={() => setShowForm(true)}
                 />
               ) : activeTab === 'attending' ? (
-                <EventList
+                <EventListWithActions
                   events={bookedEvents}
                   isLoading={bookedEventsLoading}
+                  showSearch={true}
+                  showQuickActions={true}
+                  type="attending"
+                  onDiscoverEvents={() => setActiveTab('discover')}
                 />
-              ) : (
-                <PublicEventList />
-              )}
-            </div>
-
-            {/* Account Information Card */}
-            <div className="p-6 border border-gray-200 dark:border-zinc-700 rounded-xl bg-gray-50/90 dark:bg-zinc-900/70 backdrop-blur-sm">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-                Account Information
-              </h2>
-              <div className="space-y-3 text-gray-600 dark:text-zinc-400">
-                <p>
-                  <span className="text-gray-900 dark:text-white font-medium">Email:</span>{" "}
-                  {session.user.email}
-                </p>
-                <p>
-                  <span className="text-gray-900 dark:text-white font-medium">Account Type:</span>{" "}
-                  <span className="text-green-700 dark:text-green-500">Customer</span>
-                </p>
-                <p>
-                  <span className="text-gray-900 dark:text-white font-medium">Total Events:</span>{" "}
-                  <span className="text-gray-900 dark:text-white">{events.length}</span>
-                </p>
-                <p>
-                  <span className="text-gray-900 dark:text-white font-medium">User ID:</span>{" "}
-                  <code className="text-xs bg-gray-200 dark:bg-black/50 px-2 py-1 rounded text-gray-900 dark:text-gray-400">
-                    {session.user.id}
-                  </code>
-                </p>
-              </div>
+              ) : activeTab === 'discover' ? (
+                <PublicEventListWithFavorites userId={session.user.id} />
+              ) : null}
             </div>
           </div>
 
@@ -398,8 +473,8 @@ export default function CustomerDashboardPage() {
               <div className="bg-zinc-950 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl">
                 <div className="flex-1 overflow-y-auto p-6">
                   <EnhancedEventForm
-                    event={undefined}
-                    onSubmit={handleCreateEvent}
+                    event={editingEvent}
+                    onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
                     onClose={handleCloseForm}
                     isLoading={formLoading}
                     userEmail={session.user.email || ""}

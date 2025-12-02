@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { LogOut, Menu, X } from 'lucide-react';
-import { ThemeToggle } from './ThemeToggle';
 
 export type PillNavItem = {
   label: string;
@@ -119,8 +118,6 @@ const PillNav: React.FC<PillNavProps> = ({
               </button>
             </div>
           )}
-          
-          <ThemeToggle />
 
           {/* Mobile Menu Button */}
           <button

@@ -1,0 +1,421 @@
+"use client";
+
+import { useState, useEffect, useRef, useCallback } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import {
+  Calendar,
+  MapPin,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  Share2,
+} from "lucide-react";
+import { getPublicEvents } from "@/lib/events";
+import { supabase } from "@/lib/supabase";
+import type { Event } from "@/lib/supabase-types";
+import { SkeletonCard } from "./SkeletonCard";
+import { EmptyState } from "./EmptyState";
+
+interface PublicEventListWithFavoritesProps {
+  userId?: string;
+  onDiscoverMore?: () => void;
+}
+
+const EVENTS_PER_PAGE = 9;
+
+export function PublicEventListWithFavorites({
+  userId,
+  onDiscoverMore,
+}: PublicEventListWithFavoritesProps) {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [locationFilter, setLocationFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [uniqueLocations, setUniqueLocations] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [savingFavorite, setSavingFavorite] = useState<string | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const lastAnimatedPage = useRef<number>(-1);
+
+  // Fetch favorites
+  useEffect(() => {
+    if (!userId) return;
+
+    const fetchFavorites = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("favorites")
+          .select("event_id")
+          .eq("user_id", userId);
+
+        if (error) throw error;
+        setFavorites(new Set(data?.map((f) => f.event_id) || []));
+      } catch (error) {
+        console.error("Error fetching favorites:", error);
+      }
+    };
+
+    fetchFavorites();
+  }, [userId]);
+
+  // Dynamic GSAP import for better bundle splitting
+  useEffect(() => {
+    if (!loading && events.length > 0 && lastAnimatedPage.current !== currentPage) {
+      lastAnimatedPage.current = currentPage;
+
+      import("gsap").then((gsapModule) => {
+        const gsap = gsapModule.default;
+        gsap.fromTo(
+          ".public-event-card-fav",
+          { opacity: 0, y: 20 },
+          { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, ease: "power2.out" }
+        );
+      });
+    }
+  }, [loading, currentPage, events]);
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  // Extract unique locations for filter
+  useEffect(() => {
+    if (events.length > 0) {
+      const locations = Array.from(
+        new Set(events.map((e) => e.venue_city).filter(Boolean))
+      ).sort();
+      setUniqueLocations(locations as string[]);
+    }
+  }, [events]);
+
+  const fetchEvents = async () => {
+    setLoading(true);
+    try {
+      const data = await getPublicEvents();
+      setEvents(data);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error("Error fetching public events:", error);
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleFavorite = useCallback(
+    async (eventId: string, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!userId) return;
+
+      setSavingFavorite(eventId);
+      try {
+        if (favorites.has(eventId)) {
+          // Remove from favorites
+          await supabase
+            .from("favorites")
+            .delete()
+            .eq("user_id", userId)
+            .eq("event_id", eventId);
+
+          setFavorites((prev) => {
+            const next = new Set(prev);
+            next.delete(eventId);
+            return next;
+          });
+        } else {
+          // Add to favorites
+          await supabase.from("favorites").insert({
+            user_id: userId,
+            event_id: eventId,
+          });
+
+          setFavorites((prev) => new Set(prev).add(eventId));
+        }
+      } catch (error) {
+        console.error("Error toggling favorite:", error);
+      } finally {
+        setSavingFavorite(null);
+      }
+    },
+    [userId, favorites]
+  );
+
+  const handleShare = useCallback(
+    async (event: Event, e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const url = `${window.location.origin}/event/${event.id}`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: event.event_name,
+            text: event.event_description || "Check out this event!",
+            url,
+          });
+        } catch {
+          // User cancelled
+        }
+      } else {
+        await navigator.clipboard.writeText(url);
+      }
+    },
+    []
+  );
+
+  // Filter events
+  const filteredEvents = events.filter((event) => {
+    const matchesSearch =
+      event.event_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (event.event_description?.toLowerCase().includes(searchTerm.toLowerCase()) ??
+        false);
+
+    const matchesLocation =
+      locationFilter === "all" || event.venue_city === locationFilter;
+
+    let matchesDate = true;
+    if (dateFilter !== "all") {
+      const eventDate = new Date(event.start_date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (dateFilter === "upcoming") {
+        matchesDate = eventDate >= today;
+      } else if (dateFilter === "this-week") {
+        const weekEnd = new Date(today);
+        weekEnd.setDate(weekEnd.getDate() + 7);
+        matchesDate = eventDate >= today && eventDate <= weekEnd;
+      } else if (dateFilter === "this-month") {
+        matchesDate =
+          eventDate.getMonth() === today.getMonth() &&
+          eventDate.getFullYear() === today.getFullYear();
+      }
+    }
+
+    return matchesSearch && matchesLocation && matchesDate;
+  });
+
+  const hasFilters = !!(searchTerm || locationFilter !== "all" || dateFilter !== "all");
+
+  // Pagination
+  const totalPages = Math.ceil(filteredEvents.length / EVENTS_PER_PAGE);
+  const startIndex = (currentPage - 1) * EVENTS_PER_PAGE;
+  const paginatedEvents = filteredEvents.slice(
+    startIndex,
+    startIndex + EVENTS_PER_PAGE
+  );
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        {/* Search Skeleton */}
+        <div className="space-y-4 animate-pulse">
+          <div className="w-full h-10 bg-zinc-800/60 rounded-lg" />
+          <div className="flex gap-4">
+            <div className="w-32 h-10 bg-zinc-800/60 rounded-lg" />
+            <div className="w-32 h-10 bg-zinc-800/60 rounded-lg" />
+          </div>
+        </div>
+
+        {/* Grid Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6" ref={containerRef}>
+      {/* Search & Filters */}
+      <div className="space-y-4">
+        {/* Search Bar */}
+        <input
+          type="text"
+          placeholder="Search events by name or description..."
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="w-full px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 transition backdrop-blur-md"
+        />
+
+        {/* Filter Row */}
+        <div className="flex gap-4 flex-wrap">
+          {/* Location Filter */}
+          <select
+            value={locationFilter}
+            onChange={(e) => {
+              setLocationFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm"
+          >
+            <option value="all">All Locations</option>
+            {uniqueLocations.map((location) => (
+              <option key={location} value={location}>
+                {location}
+              </option>
+            ))}
+          </select>
+
+          {/* Date Filter */}
+          <select
+            value={dateFilter}
+            onChange={(e) => {
+              setDateFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm"
+          >
+            <option value="all">All Dates</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="this-week">This Week</option>
+            <option value="this-month">This Month</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Events List */}
+      {filteredEvents.length === 0 ? (
+        <EmptyState
+          type="discover"
+          filtered={hasFilters}
+          onAction={
+            hasFilters
+              ? () => {
+                  setSearchTerm("");
+                  setLocationFilter("all");
+                  setDateFilter("all");
+                }
+              : onDiscoverMore
+          }
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {paginatedEvents.map((event) => (
+              <Link
+                key={event.id}
+                href={`/event/${event.id}`}
+                className="public-event-card-fav group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block opacity-0"
+                style={{ aspectRatio: "3/4" }}
+              >
+                {/* Background Image */}
+                <div className="absolute inset-0">
+                  {event.event_banner_url ? (
+                    <Image
+                      src={event.event_banner_url}
+                      alt={event.event_name}
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-linear-to-br from-zinc-800 via-zinc-900 to-black flex items-center justify-center">
+                      <Calendar size={48} className="text-zinc-600" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Gradient Overlay */}
+                <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/50 to-transparent" />
+
+                {/* Action Buttons (Top Left) */}
+                <div className="absolute top-6 left-6 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  {userId && (
+                    <button
+                      onClick={(e) => toggleFavorite(event.id, e)}
+                      disabled={savingFavorite === event.id}
+                      className={`p-2 rounded-full backdrop-blur-sm transition ${
+                        favorites.has(event.id)
+                          ? "bg-rose-500 text-white"
+                          : "bg-black/50 text-white hover:bg-black/70"
+                      }`}
+                    >
+                      <Heart
+                        size={18}
+                        className={favorites.has(event.id) ? "fill-current" : ""}
+                      />
+                    </button>
+                  )}
+                  <button
+                    onClick={(e) => handleShare(event, e)}
+                    className="p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition"
+                  >
+                    <Share2 size={18} />
+                  </button>
+                </div>
+
+                {/* Date Badge (Top Right) */}
+                <div className="absolute top-6 right-6">
+                  <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center shadow-lg">
+                    <div className="text-xs font-bold text-zinc-800 uppercase tracking-wide">
+                      {new Date(event.start_date).toLocaleDateString("en", {
+                        month: "short",
+                      })}
+                    </div>
+                    <div className="text-lg font-bold text-zinc-900 leading-none">
+                      {new Date(event.start_date).toLocaleDateString("en", {
+                        day: "numeric",
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className="absolute inset-0 flex flex-col justify-end p-6">
+                  <div className="space-y-3">
+                    <h3 className="text-2xl font-bold text-white leading-tight">
+                      {event.event_name}
+                    </h3>
+                    {event.venue_city && (
+                      <div className="flex items-center gap-2 text-sm text-zinc-200">
+                        <MapPin size={16} />
+                        <span>{event.venue_city}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-4 mt-8">
+              <button
+                onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                disabled={currentPage === 1}
+                className="p-2 rounded-lg border border-zinc-700/50 text-white hover:border-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <ChevronLeft size={20} />
+              </button>
+
+              <div className="text-sm text-zinc-400">
+                Page {currentPage} of {totalPages}
+              </div>
+
+              <button
+                onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-lg border border-zinc-700/50 text-white hover:border-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
