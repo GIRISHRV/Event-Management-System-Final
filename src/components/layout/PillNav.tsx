@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { LogOut, Menu, X } from 'lucide-react';
 
 export type PillNavItem = {
@@ -62,7 +63,7 @@ const PillNav: React.FC<PillNavProps> = ({
           className="rounded-full p-2 inline-flex items-center justify-center overflow-hidden text-2xl font-bold text-green-600 hover:text-green-500 transition-colors duration-300 h-12 w-12"
         >
           {logo ? (
-            <img src={logo} alt={logoAlt} className="w-full h-full object-cover block" />
+            <Image src={logo} alt={logoAlt || 'Logo'} width={48} height={48} className="w-full h-full object-cover block" />
           ) : (
             <span className="text-lg font-bold">EMS</span>
           )}

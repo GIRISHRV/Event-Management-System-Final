@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { MessageCircle, X, Send, Settings, Trash2, Lightbulb } from "lucide-react";
 import type { Event } from "@/lib/supabase-types";
 import { searchEventLocally, prepareEventContextForLLM, searchWeb } from "@/lib/event-search";
@@ -56,19 +56,7 @@ export function EventChatbot({ event }: EventChatbotProps) {
     }
   }, [isOpen, event]);
 
-  // Load chat history when chatbot opens
-  useEffect(() => {
-    if (isOpen && session) {
-      loadChatHistory();
-    }
-  }, [isOpen, session]);
-
-  // Auto-scroll to bottom when new messages arrive
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const loadChatHistory = async () => {
+  const loadChatHistory = useCallback(async () => {
     if (!session) {
       return;
     }
@@ -101,7 +89,19 @@ export function EventChatbot({ event }: EventChatbotProps) {
     } catch (error) {
       console.error("[EventChatbot] Error loading chat history:", error);
     }
-  };
+  }, [session, event.id]);
+
+  // Load chat history when chatbot opens
+  useEffect(() => {
+    if (isOpen && session) {
+      loadChatHistory();
+    }
+  }, [isOpen, session, loadChatHistory]);
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const saveChatMessage = async (message: ChatMessage) => {
     if (!session) {
