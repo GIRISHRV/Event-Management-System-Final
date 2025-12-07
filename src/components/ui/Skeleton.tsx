@@ -39,19 +39,7 @@ export const EventCardSkeleton = memo(function EventCardSkeleton() {
   );
 });
 
-export const StatsCardSkeleton = memo(function StatsCardSkeleton() {
-  return (
-    <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-900/50">
-      <div className="flex items-center justify-between">
-        <div className="space-y-2">
-          <Skeleton className="w-20 h-4 rounded" />
-          <Skeleton className="w-12 h-8 rounded" />
-        </div>
-        <Skeleton className="w-12 h-12 rounded-lg" />
-      </div>
-    </div>
-  );
-});
+
 
 export const RecommendationCardSkeleton = memo(function RecommendationCardSkeleton() {
   return (
