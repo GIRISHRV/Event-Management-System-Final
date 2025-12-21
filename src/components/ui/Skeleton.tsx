@@ -9,7 +9,7 @@ interface SkeletonProps {
 export const Skeleton = memo(function Skeleton({ className = "" }: SkeletonProps) {
   return (
     <div
-      className={`animate-pulse bg-zinc-800/60 rounded ${className}`}
+      className={`animate-pulse bg-zinc-700/50 rounded ${className}`}
       aria-hidden="true"
     />
   );

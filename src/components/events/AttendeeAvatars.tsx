@@ -33,42 +33,42 @@ export const AttendeeAvatars = memo(function AttendeeAvatars({
   useEffect(() => {
     const fetchAttendees = async () => {
       try {
-        // Get confirmed bookings with profile info
-        const { data, error, count } = await supabase
+        // Get confirmed bookings
+        const { data: bookingsData, error: bookingsError, count } = await supabase
           .from("bookings")
-          .select(
-            `
-            user_id,
-            profiles!inner (
-              id,
-              full_name,
-              avatar_url
-            )
-          `,
-            { count: "exact" }
-          )
+          .select("user_id", { count: "exact" })
           .eq("event_id", eventId)
           .eq("status", "confirmed")
           .limit(maxDisplay);
 
-        if (error) throw error;
+        if (bookingsError) throw bookingsError;
 
-        const attendeeList: Attendee[] = (data || [])
-          .map((booking) => {
-            const profile = booking.profiles as unknown as Attendee;
-            return profile
-              ? {
-                  id: profile.id,
-                  full_name: profile.full_name,
-                  avatar_url: profile.avatar_url,
-                }
-              : null;
-          })
-          .filter((a): a is Attendee => a !== null);
+        if (!bookingsData || bookingsData.length === 0) {
+          setAttendees([]);
+          setTotalCount(0);
+          return;
+        }
+
+        // Get profiles for these users
+        const userIds = bookingsData.map((b) => b.user_id).filter(Boolean);
+        const { data: profilesData, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url")
+          .in("id", userIds);
+
+        if (profilesError) throw profilesError;
+
+        const attendeeList: Attendee[] = (profilesData || []).map((profile) => ({
+          id: profile.id,
+          full_name: profile.full_name,
+          avatar_url: profile.avatar_url,
+        }));
 
         setAttendees(attendeeList);
         setTotalCount(count || 0);
-      } catch {
+      } catch (err) {
+        const error = err as Error;
+        console.error('[AttendeeAvatars] Error fetching attendees:', error.message || 'Network error - Supabase may be unreachable');
         // Failed to fetch attendees - show empty state
         setAttendees([]);
         setTotalCount(0);

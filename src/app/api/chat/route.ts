@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { callOllama, isOllamaAvailable } from "@/lib/ollama";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(req: NextRequest) {
   try {
-    const { question, eventContext, webContext, conversationHistory } = await req.json();
+    const { question, eventContext, conversationHistory, useWebSearch } = await req.json();
 
     console.log("\n      [chat API] Chat request received");
-    console.log("      [chat API] Web search was", webContext ? "ENABLED" : "DISABLED");
-    if (webContext) {
-      console.log("      [chat API] Web context length:", webContext.length);
-      console.log("      [chat API] Web context preview:", webContext.substring(0, 150));
-    } else {
-      console.log("      [chat API] No web context provided");
-    }
+    console.log("      [chat API] Use web search:", useWebSearch ? "ENABLED" : "DISABLED");
     console.log("      [chat API] Event context length:", eventContext?.length || 0);
     console.log("      [chat API] Conversation history length:", conversationHistory?.length || 0);
 
@@ -24,7 +19,96 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if Ollama is available
+    // If web search is requested, use Gemini with Google Search
+    if (useWebSearch) {
+      console.log("      [chat API] Using Gemini AI with Google Search");
+      
+      const apiKey = process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
+      if (!apiKey) {
+        console.warn("      [chat API] WARNING - Gemini API key not configured");
+        return NextResponse.json(
+          { error: "Web search not configured. Please add GEMINI_API_KEY to environment variables." },
+          { status: 503 }
+        );
+      }
+
+      try {
+        const genAI = new GoogleGenerativeAI(apiKey);
+        
+        const systemInstruction = `You are a helpful assistant for an event. You have access to Google Search to find up-to-date information.
+
+Event Information:
+${eventContext}
+
+INSTRUCTIONS:
+1. Use Google Search to find current information about lineups, performers, news, or other external details.
+2. Combine search results with the Event Information provided above.
+3. Prioritize search results for time-sensitive information (like lineups, announcements).
+4. Provide concise, helpful answers.
+5. If you find information via search, present it naturally without repeatedly saying "according to search results".`;
+
+        // Note: Google Search grounding requires specific API access and model support
+        // Using gemini-3-flash-preview which supports Google Search grounding
+        const model = genAI.getGenerativeModel({
+          model: "gemini-3-flash-preview",
+          systemInstruction,
+          tools: [{ googleSearchRetrieval: {} }],
+        });
+
+        // Build conversation history for Gemini
+        interface GeminiMessage {
+          role: "user" | "model";
+          parts: { text: string }[];
+        }
+        const geminiHistory: GeminiMessage[] = [];
+        if (conversationHistory && Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+          conversationHistory.slice(-4).forEach((msg: { role: "user" | "model"; content: string }) => {
+            geminiHistory.push({
+              role: msg.role === "model" ? "model" : "user",
+              parts: [{ text: msg.content }],
+            });
+          });
+        }
+
+        // Gemini requires the first message in history to be from 'user'
+        while (geminiHistory.length > 0 && geminiHistory[0].role === 'model') {
+          geminiHistory.shift();
+        }
+
+        const chat = model.startChat({
+          history: geminiHistory,
+        });
+
+        console.log("      [chat API] Sending to Gemini with search capability");
+        const result = await chat.sendMessage(question);
+        const response = await result.response;
+        const answer = response.text();
+
+        console.log("      [chat API] Gemini response received");
+        console.log("      [chat API] Answer length:", answer.length);
+
+        return NextResponse.json({
+          answer,
+          source: "web",
+        });
+      } catch (error: any) {
+        console.error("      [chat API] Gemini error:", error);
+        
+        // Check for rate limit error (429 or RESOURCE_EXHAUSTED)
+        if (error?.message?.includes("429") || error?.message?.includes("RESOURCE_EXHAUSTED")) {
+          console.warn("      [chat API] Gemini rate limit reached");
+          return NextResponse.json(
+            { error: "Gemini API rate limit reached. Please try again later." },
+            { status: 429 }
+          );
+        }
+
+        // Fall back to Ollama for other errors
+        console.log("      [chat API] Falling back to Ollama");
+      }
+    }
+
+    // Use Ollama for local-only queries
     const ollamaAvailable = await isOllamaAvailable();
     if (!ollamaAvailable) {
       console.error("Ollama not available at configured URL");
@@ -36,35 +120,17 @@ export async function POST(req: NextRequest) {
 
     console.log("      [chat API] Ollama is available");
     console.log("      [chat API] Building system prompt");
-    if (webContext) {
-      console.log("      [chat API] Including web context in system prompt");
-    }
 
-    let systemPrompt = `You are a helpful assistant that answers questions about a specific event.
-IMPORTANT: Only answer based on the event information provided. Do not generate test cases, code examples, or unrelated content.
-Provide helpful, well-formatted answers using bullet points and clear structure when appropriate.
-Keep answers practical and relevant to the event. Be concise.
+    const systemPrompt = `You are a helpful assistant that answers questions about a specific event.
+IMPORTANT: Only answer based on the event information provided below. Do not hallucinate or use outside knowledge.
 
 Event Information:
 ${eventContext}
 
-Answer ONLY about this event. If a question is not about the event, politely decline and refocus on event-related topics.`;
-
-    // If web context is provided, add it to the prompt and allow using it
-    if (webContext) {
-      systemPrompt += `\n\nWhen answering questions about advice (clothing, preparation, etc.), use the following context:
-- Consider the event type, date, and location mentioned above
-- Use web search results below to provide practical, relevant suggestions
-- Tailor recommendations to match the event's nature, season, and theme
-
-Web Search Results:
-${webContext}
-
-Answer with advice that's specific to this event based on both the event details and web search information.`;
-    } else {
-      // If no web context, only use event data
-      systemPrompt += `\n\nIf a question cannot be answered using the event data above, politely explain that the information is not available.`;
-    }
+INSTRUCTIONS:
+1. Answer ONLY based on the Event Information above.
+2. If the answer is not in the Event Information, politely explain that the information is not available.
+3. Keep answers practical and relevant to the event.`;
 
     // Convert conversation history to Ollama format
     interface OllamaMessage {
@@ -92,9 +158,8 @@ Answer with advice that's specific to this event based on both the event details
 
     console.log("      [chat API] Sending to Llama3.1");
     console.log("      [chat API] Number of messages:", ollamaMessages.length);
-    console.log("      [chat API] System prompt includes web context:", webContext ? "YES" : "NO");
 
-    const answer = await callOllama(ollamaMessages, systemPrompt, process.env.OLLAMA_MODEL || "mistral");
+    const answer = await callOllama(ollamaMessages, systemPrompt, process.env.OLLAMA_MODEL || "llama3.1:8b");
 
     console.log("      [chat API] Llama3.1 response received");
     console.log("      [chat API] Answer length:", answer.length);

@@ -24,6 +24,7 @@ export default function SignUpPage() {
 
   const navItems = [
     { label: 'Home', href: '/' },
+    { label: 'Events', href: '/events' },
     { label: 'Sign In', href: '/signin' },
     { label: 'Sign Up', href: '/signup' }
   ];

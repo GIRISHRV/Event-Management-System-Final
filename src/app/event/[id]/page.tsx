@@ -41,6 +41,7 @@ export default function EventDetailsPage() {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [allGalleryItems, setAllGalleryItems] = useState<Array<{ url: string; type: 'image' | 'video'; isYoutube: boolean }>>([]);
   const [viewMode, setViewMode] = useState<'public' | 'manage'>('public');
+  const [isAIOpen, setIsAIOpen] = useState(false);
 
   const eventId = params?.id as string;
 
@@ -175,10 +176,12 @@ export default function EventDetailsPage() {
   const navItems = session 
     ? [
         { label: "Home", href: "/" },
+        { label: "Events", href: "/events" },
         { label: "Dashboard", href: userProfile?.role === "customer" ? "/customer-dashboard" : "/vendor-dashboard" }
       ]
     : [
         { label: "Home", href: "/" },
+        { label: "Events", href: "/events" },
         { label: "Sign In", href: "/signin" },
         { label: "Sign Up", href: "/signup" }
       ];
@@ -729,52 +732,67 @@ export default function EventDetailsPage() {
 
       {/* Edit Modal */}
       {isEditing && event && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-2 z-50 backdrop-blur-sm">
-          <div className="bg-zinc-950 rounded-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col border border-zinc-800/50 shadow-2xl">
-            {/* Modal Header */}
-            <div className="sticky top-0 bg-linear-to-r from-zinc-900 to-zinc-800 px-8 py-5 border-b border-zinc-700/50 flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-white">Edit Event</h2>
-                <p className="text-sm text-gray-400 mt-1">{event.event_name}</p>
-              </div>
-              <button
-                onClick={() => setIsEditing(false)}
-                className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-gray-400 hover:text-white shrink-0"
-              >
-                <X size={24} />
-              </button>
-            </div>
-            
-            {/* Modal Content */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-8">
-                <EnhancedEventForm
-                  event={event}
-                  onSubmit={async (data: CreateEventInput) => {
-                    try {
-                      const { data: updatedEvent, error } = await supabase
-                        .from('events')
-                        .update(data)
-                        .eq('id', event.id)
-                        .select()
-                        .single();
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-2 z-50 backdrop-blur-sm overflow-x-auto">
+          <div className={`flex items-stretch gap-6 transition-all duration-500 w-full max-w-[95vw] ${isAIOpen ? '' : 'justify-center'}`}>
+            {/* AI Panel Slot */}
+            <div 
+              id="ai-panel-slot" 
+              className={`shrink-0 transition-all duration-500 ease-in-out ${isAIOpen ? 'w-1/2 opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 hidden'}`} 
+            />
 
-                      if (error) throw error;
-                      
-                      toastSuccess("Event updated successfully!");
-                      handleEventUpdate(updatedEvent);
-                    } catch (error) {
-                      const errorMessage = error && typeof error === 'object' && 'message' in error 
-                        ? (error as { message: string }).message 
-                        : 'Unknown error occurred';
-                      
-                      toastError(`Failed to update event: ${errorMessage}`);
-                      throw error;
-                    }
+            <div className={`bg-zinc-950 rounded-2xl max-h-[92vh] overflow-hidden flex flex-col border border-zinc-800/50 shadow-2xl transition-all duration-500 ease-in-out ${isAIOpen ? 'w-1/2' : 'w-full max-w-5xl'}`}>
+              {/* Modal Header */}
+              <div className="sticky top-0 bg-linear-to-r from-zinc-900 to-zinc-800 px-8 py-5 border-b border-zinc-700/50 flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Edit Event</h2>
+                  <p className="text-sm text-gray-400 mt-1">{event.event_name}</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    setIsAIOpen(false);
                   }}
-                  onClose={() => setIsEditing(false)}
-                  userEmail={session?.user?.email}
-                />
+                  className="p-2 hover:bg-zinc-700 rounded-lg transition-colors text-gray-400 hover:text-white shrink-0"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto">
+                <div className="p-8">
+                  <EnhancedEventForm
+                    event={event}
+                    onSubmit={async (data: CreateEventInput) => {
+                      try {
+                        const { data: updatedEvent, error } = await supabase
+                          .from('events')
+                          .update(data)
+                          .eq('id', event.id)
+                          .select()
+                          .single();
+
+                        if (error) throw error;
+                        
+                        toastSuccess("Event updated successfully!");
+                        handleEventUpdate(updatedEvent);
+                      } catch (error) {
+                        const errorMessage = error && typeof error === 'object' && 'message' in error 
+                          ? (error as { message: string }).message 
+                          : 'Unknown error occurred';
+                        
+                        toastError(`Failed to update event: ${errorMessage}`);
+                        throw error;
+                      }
+                    }}
+                    onClose={() => {
+                      setIsEditing(false);
+                      setIsAIOpen(false);
+                    }}
+                    userEmail={session?.user?.email}
+                    onAIStateChange={setIsAIOpen}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -782,7 +800,7 @@ export default function EventDetailsPage() {
       )}
 
       {/* Event Chatbot - appears only for public events */}
-      {event && event.visibility_type === "public" && <EventChatbot event={event} />}
+      {event && event.visibility_type === "public" && !isEditing && <EventChatbot event={event} />}
       
       <ConfirmModal
         isOpen={deleteModalOpen}

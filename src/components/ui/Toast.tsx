@@ -68,15 +68,15 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
 
   const styles = {
     success: {
-      border: "border-green-500",
-      icon: "text-green-500",
-      bg: "bg-green-500",
+      border: "border-primary",
+      icon: "text-primary",
+      bg: "bg-primary",
       iconComponent: CheckCircle
     },
     error: {
-      border: "border-red-500",
-      icon: "text-red-500",
-      bg: "bg-red-500",
+      border: "border-destructive",
+      icon: "text-destructive",
+      bg: "bg-destructive",
       iconComponent: AlertCircle
     },
     info: {
@@ -113,7 +113,7 @@ const ToastItem = ({ toast, onRemove }: ToastItemProps) => {
         <div className="ml-4 flex shrink-0">
           <button
             onClick={handleRemove}
-            className="inline-flex rounded-md text-zinc-400 hover:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-zinc-900"
+            className="inline-flex rounded-md text-zinc-400 hover:text-zinc-300 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-zinc-900"
           >
             <span className="sr-only">Close</span>
             <X className="h-5 w-5" />

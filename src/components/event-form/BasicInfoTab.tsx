@@ -1,6 +1,6 @@
 import React from 'react';
 import Image from 'next/image';
-import { Upload, Globe, Activity } from 'lucide-react';
+import { Upload, Globe, Activity, Calendar, Clock, User, Mail, Users } from 'lucide-react';
 import { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form';
 import { EventFormSchema } from '@/lib/schemas';
 import { VISIBILITY_TYPES, EVENT_STATUS } from '@/lib/constants';
@@ -24,62 +24,77 @@ export function BasicInfoTab({
 }: BasicInfoTabProps) {
   const eventBannerUrl = watch('eventBannerUrl');
 
+  const inputClasses = `
+    w-full px-3 py-2.5 bg-zinc-900/50 border rounded-xl text-white placeholder-zinc-500 
+    focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 
+    transition-all duration-200
+  `;
+  
+  const labelClasses = "block text-sm font-medium text-zinc-400 mb-2 ml-1";
+
   return (
     <div className="space-y-6">
       {/* Event Name */}
       <div>
-        <label htmlFor="eventName" className="block text-sm font-medium text-gray-300 mb-2">
-          Event Name *
+        <label htmlFor="eventName" className={labelClasses}>
+          Event Name <span className="text-red-400">*</span>
         </label>
         <input
           id="eventName"
           type="text"
           {...register('eventName')}
-          className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.eventName ? 'border-red-500' : 'border-zinc-600'}`}
-          placeholder="Enter event name"
+          className={`${inputClasses} ${errors.eventName ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20' : 'border-zinc-800'}`}
+          placeholder="e.g. Tech Conference 2024"
         />
-        {errors.eventName && <p className="text-red-500 text-xs mt-1">{errors.eventName.message}</p>}
+        {errors.eventName && <p className="text-red-400 text-xs mt-2 ml-1">{errors.eventName.message}</p>}
       </div>
 
       {/* Event Banner */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className={labelClasses}>
           Event Banner
         </label>
-        <div className="space-y-3">
+        <div className="space-y-4">
           {eventBannerUrl && (
-            <div className="relative w-full h-40">
+            <div className="relative w-full h-48 group">
               <Image
                 src={eventBannerUrl}
                 alt="Event banner"
                 fill
-                className="object-cover rounded-lg"
+                className="object-cover rounded-xl border border-zinc-800"
               />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors"
+                >
+                  Change Image
+                </button>
+              </div>
             </div>
           )}
-          <div className="flex gap-2">
-            <input
-              type="url"
-              aria-label="Event Banner URL"
-              placeholder="Or paste banner URL here"
-              {...register('eventBannerUrl')}
-              className="flex-1 px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-            />
-            <button
-              type="button"
+          
+          {!eventBannerUrl && (
+            <div 
               onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg transition-colors shrink-0"
+              className="w-full h-32 border-2 border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-zinc-700 hover:bg-zinc-900/30 transition-all group"
             >
-              {isUploading ? (
-                <>Loading...</>
-              ) : (
-                <>
-                  <Upload size={16} />
-                  Upload
-                </>
-              )}
-            </button>
+              <Upload className="w-8 h-8 text-zinc-600 group-hover:text-zinc-400 mb-2 transition-colors" />
+              <span className="text-sm text-zinc-500 group-hover:text-zinc-400">Click to upload banner</span>
+            </div>
+          )}
+
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <input
+                type="url"
+                aria-label="Event Banner URL"
+                placeholder="Or paste image URL..."
+                {...register('eventBannerUrl')}
+                className={`${inputClasses} border-zinc-800`}
+              />
+            </div>
             <input
               type="file"
               ref={fileInputRef}
@@ -93,133 +108,147 @@ export function BasicInfoTab({
 
       {/* Description */}
       <div>
-        <label htmlFor="eventDescription" className="block text-sm font-medium text-gray-300 mb-2">
+        <label htmlFor="eventDescription" className={labelClasses}>
           Description
         </label>
         <textarea
           id="eventDescription"
           {...register('eventDescription')}
-          rows={4}
-          className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.eventDescription ? 'border-red-500' : 'border-zinc-600'}`}
-          placeholder="Describe your event in detail..."
+          rows={5}
+          className={`${inputClasses} ${errors.eventDescription ? 'border-red-500/50' : 'border-zinc-800'} resize-none`}
+          placeholder="Describe what makes your event special..."
         />
-        {errors.eventDescription && <p className="text-red-500 text-xs mt-1">{errors.eventDescription.message}</p>}
+        {errors.eventDescription && <p className="text-red-400 text-xs mt-2 ml-1">{errors.eventDescription.message}</p>}
       </div>
 
       {/* Date & Time */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Start Date *
-          </label>
-          <input
-            type="date"
-            {...register('startDate')}
-            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.startDate ? 'border-red-500' : 'border-zinc-600'}`}
-          />
-          {errors.startDate && <p className="text-red-500 text-xs mt-1">{errors.startDate.message}</p>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="space-y-4 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
+          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2 mb-4">
+            <Calendar size={16} className="text-emerald-400" />
+            Start Schedule
+          </h3>
+          <div>
+            <label className={labelClasses}>Date</label>
+            <input
+              type="date"
+              {...register('startDate')}
+              className={`${inputClasses} border-zinc-800`}
+            />
+            {errors.startDate && <p className="text-red-400 text-xs mt-2 ml-1">{errors.startDate.message}</p>}
+          </div>
+          <div>
+            <label className={labelClasses}>Time</label>
+            <input
+              type="time"
+              {...register('startTime')}
+              className={`${inputClasses} border-zinc-800`}
+            />
+            {errors.startTime && <p className="text-red-400 text-xs mt-2 ml-1">{errors.startTime.message}</p>}
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            Start Time *
-          </label>
-          <input
-            type="time"
-            {...register('startTime')}
-            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.startTime ? 'border-red-500' : 'border-zinc-600'}`}
-          />
-          {errors.startTime && <p className="text-red-500 text-xs mt-1">{errors.startTime.message}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            End Date *
-          </label>
-          <input
-            type="date"
-            {...register('endDate')}
-            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.endDate ? 'border-red-500' : 'border-zinc-600'}`}
-          />
-          {errors.endDate && <p className="text-red-500 text-xs mt-1">{errors.endDate.message}</p>}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
-            End Time *
-          </label>
-          <input
-            type="time"
-            {...register('endTime')}
-            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white focus:outline-none focus:border-green-500 ${errors.endTime ? 'border-red-500' : 'border-zinc-600'}`}
-          />
-          {errors.endTime && <p className="text-red-500 text-xs mt-1">{errors.endTime.message}</p>}
+
+        <div className="space-y-4 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
+          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2 mb-4">
+            <Clock size={16} className="text-teal-400" />
+            End Schedule
+          </h3>
+          <div>
+            <label className={labelClasses}>Date</label>
+            <input
+              type="date"
+              {...register('endDate')}
+              className={`${inputClasses} border-zinc-800`}
+            />
+            {errors.endDate && <p className="text-red-400 text-xs mt-2 ml-1">{errors.endDate.message}</p>}
+          </div>
+          <div>
+            <label className={labelClasses}>Time</label>
+            <input
+              type="time"
+              {...register('endTime')}
+              className={`${inputClasses} border-zinc-800`}
+            />
+            {errors.endTime && <p className="text-red-400 text-xs mt-2 ml-1">{errors.endTime.message}</p>}
+          </div>
         </div>
       </div>
 
       {/* Organizer Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className={labelClasses}>
             Organizer Name
           </label>
-          <input
-            type="text"
-            {...register('organizerName')}
-            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.organizerName ? 'border-red-500' : 'border-zinc-600'}`}
-            placeholder="Event organizer name"
-          />
-          {errors.organizerName && <p className="text-red-500 text-xs mt-1">{errors.organizerName.message}</p>}
+          <div className="relative">
+            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
+            <input
+              type="text"
+              {...register('organizerName')}
+              className={`${inputClasses} pl-12 border-zinc-800`}
+              placeholder="Who is hosting?"
+            />
+          </div>
+          {errors.organizerName && <p className="text-red-400 text-xs mt-2 ml-1">{errors.organizerName.message}</p>}
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className={labelClasses}>
             Organizer Contact
           </label>
-          <input
-            type="text"
-            {...register('organizerContact')}
-            className={`w-full px-3 py-2 bg-zinc-700 border rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500 ${errors.organizerContact ? 'border-red-500' : 'border-zinc-600'}`}
-            placeholder="Email or phone number"
-          />
-          {errors.organizerContact && <p className="text-red-500 text-xs mt-1">{errors.organizerContact.message}</p>}
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
+            <input
+              type="text"
+              {...register('organizerContact')}
+              className={`${inputClasses} pl-12 border-zinc-800`}
+              placeholder="Contact email or phone"
+            />
+          </div>
+          {errors.organizerContact && <p className="text-red-400 text-xs mt-2 ml-1">{errors.organizerContact.message}</p>}
         </div>
       </div>
 
       {/* Event Settings */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className={labelClasses}>
             Visibility
           </label>
           <div className="relative">
-            <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 pointer-events-none" />
             <select
               {...register('visibilityType')}
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
+              className={`${inputClasses} pl-12 border-zinc-800 appearance-none cursor-pointer`}
             >
-              <option value={VISIBILITY_TYPES.PUBLIC}>Public</option>
-              <option value={VISIBILITY_TYPES.PRIVATE}>Private</option>
-              <option value={VISIBILITY_TYPES.WHITELIST}>Whitelist Only</option>
+              <option value={VISIBILITY_TYPES.PUBLIC}>Public Event</option>
+              <option value={VISIBILITY_TYPES.PRIVATE}>Private Event</option>
+              <option value={VISIBILITY_TYPES.WHITELIST}>Invite Only</option>
             </select>
           </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className={labelClasses}>
             Max Attendees
           </label>
-          <input
-            type="number"
-            {...register('maxAttendees')}
-            className="w-full px-3 py-2 bg-zinc-700 border border-zinc-600 rounded-lg text-white placeholder-zinc-400 focus:outline-none focus:border-green-500"
-            placeholder="Leave empty for unlimited"
-          />
+          <div className="relative">
+            <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
+            <input
+              type="number"
+              {...register('maxAttendees')}
+              className={`${inputClasses} pl-12 border-zinc-800`}
+              placeholder="Unlimited"
+            />
+          </div>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className={labelClasses}>
             Event Status
           </label>
           <div className="relative">
-            <Activity className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 pointer-events-none" />
             <select
               {...register('eventStatus')}
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white"
+              className={`${inputClasses} pl-12 border-zinc-800 appearance-none cursor-pointer`}
             >
               <option value={EVENT_STATUS.UPCOMING}>Upcoming</option>
               <option value={EVENT_STATUS.ONGOING}>Ongoing</option>

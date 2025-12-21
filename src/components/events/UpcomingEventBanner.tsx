@@ -28,7 +28,7 @@ export function UpcomingEventBanner({ event }: UpcomingEventBannerProps) {
   return (
     <Link
       href={`/event/${event.id}`}
-      className="group block mb-8 relative overflow-hidden rounded-2xl border border-green-500/30 bg-linear-to-r from-zinc-900/90 via-zinc-800/90 to-zinc-900/90 backdrop-blur-md hover:border-green-500/50 transition-all"
+      className="group block mb-8 relative overflow-hidden rounded-2xl border border-primary/30 bg-linear-to-r from-zinc-900/90 via-zinc-800/90 to-zinc-900/90 backdrop-blur-md hover:border-primary/50 transition-all"
     >
       {/* Background Image (if exists) */}
       {event.event_banner_url && (
@@ -45,8 +45,8 @@ export function UpcomingEventBanner({ event }: UpcomingEventBannerProps) {
 
       <div className="relative p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
         {/* Date Badge */}
-        <div className="shrink-0 px-4 py-3 bg-green-600 rounded-xl text-center min-w-20">
-          <div className="text-xs font-bold text-green-100 uppercase tracking-wide">
+        <div className="shrink-0 px-4 py-3 bg-primary rounded-xl text-center min-w-20">
+          <div className="text-xs font-bold text-white uppercase tracking-wide">
             {eventDate.toLocaleDateString("en", { month: "short" })}
           </div>
           <div className="text-2xl font-bold text-white leading-none">
@@ -57,12 +57,12 @@ export function UpcomingEventBanner({ event }: UpcomingEventBannerProps) {
         {/* Event Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2 py-0.5 text-xs font-medium bg-green-500/20 text-green-400 rounded-full">
+            <span className="px-2 py-0.5 text-xs font-medium bg-primary/20 text-primary rounded-full">
               {getDaysUntilText()}
             </span>
             <span className="text-xs text-zinc-500">Your next event</span>
           </div>
-          <h3 className="text-xl font-bold text-white truncate group-hover:text-green-400 transition-colors">
+          <h3 className="text-xl font-bold text-white truncate group-hover:text-primary transition-colors">
             {event.event_name}
           </h3>
           <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-zinc-400">
@@ -82,7 +82,7 @@ export function UpcomingEventBanner({ event }: UpcomingEventBannerProps) {
         </div>
 
         {/* Arrow */}
-        <div className="shrink-0 p-3 rounded-full bg-zinc-800 group-hover:bg-green-600 transition-colors">
+        <div className="shrink-0 p-3 rounded-full bg-zinc-800 group-hover:bg-primary transition-colors">
           <ArrowRight
             size={20}
             className="text-zinc-400 group-hover:text-white transition-colors"

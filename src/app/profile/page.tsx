@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import PillNav from "@/components/layout/PillNav";
 import { useToast } from "@/components/ui/Toast";
-import { Loader2, Upload, User, Save, ArrowLeft, Mail, Shield, Hash } from "lucide-react";
+import { Loader2, Upload, User, Save, ArrowLeft, Mail, Shield, Hash, Briefcase } from "lucide-react";
 import Squares from "@/components/ui/Squares";
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
@@ -111,9 +111,12 @@ export default function ProfilePage() {
 
   const navItems = [
     { label: 'Home', href: '/' },
+    { label: 'Events', href: '/events' },
     { label: 'Dashboard', href: userProfile?.role === 'vendor' ? '/vendor-dashboard' : '/customer-dashboard' },
     { label: 'Profile', href: '/profile' }
   ];
+
+  const isVendor = userProfile?.role === 'vendor';
 
   return (
     <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
@@ -123,10 +126,10 @@ export default function ProfilePage() {
       <div className="fixed inset-0 z-0">
         <Squares
           direction="diagonal"
-          speed={0.8}
-          borderColor="rgba(34, 197, 94, 0.3)"
-          squareSize={40}
-          hoverFillColor="rgba(34, 197, 94, 0.1)"
+          speed={0.5}
+          borderColor={isVendor ? "rgba(99, 102, 241, 0.2)" : "rgba(34, 197, 94, 0.2)"}
+          squareSize={50}
+          hoverFillColor={isVendor ? "rgba(99, 102, 241, 0.1)" : "rgba(34, 197, 94, 0.1)"}
         />
       </div>
 
@@ -185,7 +188,7 @@ export default function ProfilePage() {
                     </div>
                     {uploading && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
-                        <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
+                        <Loader2 className={`w-8 h-8 animate-spin ${isVendor ? 'text-indigo-500' : 'text-green-500'}`} />
                       </div>
                     )}
                   </div>
@@ -193,7 +196,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
-                      className="text-sm text-green-500 hover:text-green-400 font-medium"
+                      className={`text-sm font-medium ${isVendor ? 'text-indigo-500 hover:text-indigo-400' : 'text-green-500 hover:text-green-400'}`}
                     >
                       Change Avatar
                     </button>
@@ -219,7 +222,9 @@ export default function ProfilePage() {
                         type="text"
                         value={formData.full_name}
                         onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-                        className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all"
+                        className={`w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-1 transition-all ${
+                          isVendor ? 'focus:border-indigo-500 focus:ring-indigo-500' : 'focus:border-green-500 focus:ring-green-500'
+                        }`}
                         placeholder="John Doe"
                       />
                     </div>
@@ -231,7 +236,9 @@ export default function ProfilePage() {
                         type="text"
                         value={formData.username}
                         onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                        className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all"
+                        className={`w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-1 transition-all ${
+                          isVendor ? 'focus:border-indigo-500 focus:ring-indigo-500' : 'focus:border-green-500 focus:ring-green-500'
+                        }`}
                         placeholder="@johndoe"
                       />
                     </div>
@@ -245,7 +252,9 @@ export default function ProfilePage() {
                       value={formData.bio}
                       onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
                       rows={4}
-                      className="w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all resize-none"
+                      className={`w-full px-4 py-3 bg-zinc-800 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-1 transition-all resize-none ${
+                        isVendor ? 'focus:border-indigo-500 focus:ring-indigo-500' : 'focus:border-green-500 focus:ring-green-500'
+                      }`}
                       placeholder="Tell us a bit about yourself..."
                     />
                     <p className="text-xs text-gray-500 mt-2 text-right">
@@ -279,7 +288,11 @@ export default function ProfilePage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex items-center gap-2 px-8 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-xl font-medium transition-all shadow-lg shadow-green-900/20"
+                    className={`flex items-center gap-2 px-8 py-2.5 text-white rounded-xl font-medium transition-all shadow-lg ${
+                      isVendor 
+                        ? 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-600/50 shadow-indigo-900/20' 
+                        : 'bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 shadow-green-900/20'
+                    }`}
                   >
                     {loading ? (
                       <>

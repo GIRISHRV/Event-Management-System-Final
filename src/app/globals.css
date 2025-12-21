@@ -6,6 +6,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface-dark: var(--surface-dark);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -47,6 +48,7 @@
   --radius: 0.625rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
+  --surface-dark: oklch(0.97 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -78,14 +80,30 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+.theme-vendor {
+  --primary: oklch(0.491 0.27 277.0); /* Indigo-600 */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.491 0.27 277.0);
+  --sidebar-primary: oklch(0.491 0.27 277.0);
+  --sidebar-ring: oklch(0.491 0.27 277.0);
+}
+
+.theme-customer {
+  --primary: oklch(0.623 0.188 145.0); /* Green-600 */
+  --primary-foreground: oklch(0.985 0 0);
+  --ring: oklch(0.623 0.188 145.0);
+  --sidebar-primary: oklch(0.623 0.188 145.0);
+  --sidebar-ring: oklch(0.623 0.188 145.0);
+}
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
+  --surface-dark: oklch(0.12 0 0);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  --primary: oklch(0.7 0 0);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);

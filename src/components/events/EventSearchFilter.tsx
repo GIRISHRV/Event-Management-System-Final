@@ -90,7 +90,7 @@ export function EventSearchFilter({
             placeholder="Search events by name or description..."
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-zinc-800/60 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 transition backdrop-blur-md"
+            className="w-full pl-10 pr-4 py-2.5 bg-zinc-800/60 border border-zinc-700/50 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:border-primary transition backdrop-blur-md"
           />
           {search && (
             <button
@@ -105,14 +105,14 @@ export function EventSearchFilter({
           onClick={() => setShowFilters(!showFilters)}
           className={`px-4 py-2.5 rounded-xl border transition flex items-center gap-2 ${
             showFilters || hasActiveFilters
-              ? "bg-green-600/20 border-green-500/50 text-green-400"
+              ? "bg-primary/20 border-primary/50 text-primary"
               : "bg-zinc-800/60 border-zinc-700/50 text-zinc-400 hover:text-white"
           }`}
         >
           <Filter size={18} />
           <span className="hidden sm:inline">Filters</span>
           {hasActiveFilters && (
-            <span className="w-2 h-2 rounded-full bg-green-500" />
+            <span className="w-2 h-2 rounded-full bg-primary" />
           )}
         </button>
       </div>
@@ -126,7 +126,7 @@ export function EventSearchFilter({
             <select
               value={location}
               onChange={(e) => handleLocationChange(e.target.value)}
-              className="px-3 py-2 bg-zinc-800 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm min-w-[140px]"
+              className="px-3 py-2 bg-zinc-800 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-primary transition text-sm min-w-[140px]"
             >
               <option value="all">All Locations</option>
               {locations.map((loc) => (
@@ -143,7 +143,7 @@ export function EventSearchFilter({
             <select
               value={date}
               onChange={(e) => handleDateChange(e.target.value)}
-              className="px-3 py-2 bg-zinc-800 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm min-w-[140px]"
+              className="px-3 py-2 bg-zinc-800 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-primary transition text-sm min-w-[140px]"
             >
               <option value="all">All Dates</option>
               <option value="upcoming">Upcoming</option>
@@ -158,7 +158,7 @@ export function EventSearchFilter({
             <select
               value={category}
               onChange={(e) => handleCategoryChange(e.target.value)}
-              className="px-3 py-2 bg-zinc-800 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm min-w-[140px]"
+              className="px-3 py-2 bg-zinc-800 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-primary transition text-sm min-w-[140px]"
             >
               <option value="all">All Categories</option>
               {categories.map((cat) => (

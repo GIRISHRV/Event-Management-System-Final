@@ -201,7 +201,7 @@ export function searchLocation(question: string, event: Event): SearchMatch | nu
 - Venue: ${event.venue_name || "N/A"}
 - Address: ${event.venue_address || "N/A"}
 - City: ${event.venue_city || "N/A"}
-- Coordinates: ${event.latitude && event.longitude ? `${event.latitude}, ${event.longitude}` : "N/A"}`;
+- Coordinates: ${event.venue_latitude && event.venue_longitude ? `${event.venue_latitude}, ${event.venue_longitude}` : "N/A"}`;
 
   return {
     score: 0.9,
@@ -320,27 +320,4 @@ Gallery:
 - Videos: ${event.gallery_videos?.length || 0} videos`;
 
   return context.trim();
-}
-
-// Web search function - calls API to search the web
-export async function searchWeb(query: string): Promise<string | null> {
-  try {
-    const response = await fetch("/api/web-search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ query }),
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    
-    return data.summary || null;
-  } catch {
-    return null;
-  }
 }

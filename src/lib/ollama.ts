@@ -1,6 +1,6 @@
 // Ollama API client for self-hosted LLM
 // Make sure Ollama is running: ollama serve
-// Pull a model: ollama pull mistral (or llama2, neural-chat, etc.)
+// Pull a model: ollama pull llama3.1:8b (or llama2, neural-chat, etc.)
 
 export interface OllamaMessage {
   role: "user" | "assistant";
@@ -23,7 +23,7 @@ export interface OllamaResponse {
 export async function callOllama(
   messages: OllamaMessage[],
   systemPrompt: string,
-  model: string = "mistral"
+  model: string = "llama3.1:8b"
 ): Promise<string> {
   const ollamaUrl = process.env.OLLAMA_URL || "http://localhost:11434";
 

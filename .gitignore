@@ -41,3 +41,5 @@ yarn-error.log*
 next-env.d.ts
 MILESTONE_REPORT.md
 .gitignore
+.github/copilot-instructions.md
+docs/DATABASE_SCHEMA.md

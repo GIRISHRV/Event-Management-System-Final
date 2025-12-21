@@ -75,7 +75,7 @@ export const EventMap = memo(function EventMap({ event, nearbyEvents = [] }: Eve
             <div class="p-2">
               <h3 class="font-bold text-sm">${event.event_name}</h3>
               <p class="text-xs text-gray-600">${event.venue_name || "No venue"}</p>
-              <a href="https://www.google.com/maps/search/${event.venue_latitude},${event.venue_longitude}" target="_blank" class="text-xs text-blue-500 hover:underline mt-2 inline-block">Get Directions →</a>
+              <a href="https://www.google.com/maps/search/${event.venue_latitude},${event.venue_longitude}" target="_blank" class="text-xs text-primary hover:underline mt-2 inline-block">Get Directions →</a>
             </div>
           `
           )
@@ -103,7 +103,7 @@ export const EventMap = memo(function EventMap({ event, nearbyEvents = [] }: Eve
                 <div class="p-2">
                   <h3 class="font-bold text-sm">${nearbyEvent.event_name}</h3>
                   <p class="text-xs text-gray-600">${nearbyEvent.venue_name || "No venue"}</p>
-                  <a href="/event/${nearbyEvent.id}" class="text-xs text-blue-500 hover:underline mt-2 inline-block">View Event →</a>
+                  <a href="/event/${nearbyEvent.id}" class="text-xs text-primary hover:underline mt-2 inline-block">View Event →</a>
                 </div>
               `
               )
@@ -125,8 +125,9 @@ export const EventMap = memo(function EventMap({ event, nearbyEvents = [] }: Eve
         }
 
         setIsLoaded(true);
-      } catch {
-        // Map failed to load - silently fail
+      } catch (err) {
+        console.error('[EventMap] Error initializing map:', err);
+        // Map failed to load - will show fallback UI
       }
     };
 

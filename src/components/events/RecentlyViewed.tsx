@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Clock, Calendar, ChevronRight } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { Event } from "@/lib/supabase-types";
+import { RecentlyViewedSkeleton } from "@/components/ui/Skeleton";
 
 interface RecentlyViewedProps {
   userId: string;
@@ -52,7 +53,8 @@ export const RecentlyViewed = memo(function RecentlyViewed({ userId, maxItems = 
           .filter((e): e is Event => e !== null && e !== undefined);
 
         setRecentEvents(orderedEvents);
-      } catch {
+      } catch (err) {
+        console.error('[RecentlyViewed] Error fetching events:', err);
         // Failed to fetch - show empty state
         setRecentEvents([]);
       } finally {
@@ -73,14 +75,7 @@ export const RecentlyViewed = memo(function RecentlyViewed({ userId, maxItems = 
       </div>
 
       {loading ? (
-        <div className="flex gap-4 overflow-x-auto pb-2">
-          {[...Array(3)].map((_, i) => (
-            <div
-              key={i}
-              className="shrink-0 w-64 h-24 rounded-xl bg-zinc-800/60 animate-pulse"
-            />
-          ))}
-        </div>
+        <RecentlyViewedSkeleton />
       ) : recentEvents.length === 0 ? (
         <div className="text-center py-6">
           <p className="text-zinc-400 text-sm">No recently viewed events yet. Start exploring!</p>
@@ -172,7 +167,8 @@ export async function trackRecentlyViewed(
           oldEntries.map((e) => e.id)
         );
     }
-  } catch {
-    // Silently fail tracking - non-critical feature
+  } catch (err) {
+    console.error('[RecentlyViewed] Error tracking view:', err);
+    // Non-critical feature - continue silently
   }
 }

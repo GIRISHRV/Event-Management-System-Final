@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { useSupabaseAuth } from '@/hooks/useSupabase';
+import { useAuth } from '@/context/AuthContext';
 import { Booking } from '@/lib/supabase-types';
 import { useToast } from "@/components/ui/Toast";
 import { useConfetti } from "@/components/ui/Confetti";
@@ -14,7 +14,7 @@ interface RSVPButtonProps {
 }
 
 export default function RSVPButton({ eventId, onStatusChange }: RSVPButtonProps) {
-  const { session, loading: authLoading } = useSupabaseAuth();
+  const { session, userProfile, loading: authLoading } = useAuth();
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const { success, error: toastError, Toast } = useToast();
@@ -38,7 +38,8 @@ export default function RSVPButton({ eventId, onStatusChange }: RSVPButtonProps)
 
         if (error) throw error;
         setBooking(data);
-      } catch {
+      } catch (err) {
+        console.error('[RSVPButton] Error checking booking:', err);
         // Error checking booking - show as not booked
       } finally {
         setLoading(false);
@@ -107,11 +108,23 @@ export default function RSVPButton({ eventId, onStatusChange }: RSVPButtonProps)
       );
     }
 
+    if (userProfile?.role === 'vendor') {
+      return (
+        <button
+          disabled
+          className="w-full sm:w-auto px-8 py-3 rounded-xl bg-zinc-800/50 text-zinc-500 font-semibold border border-zinc-700/50 cursor-not-allowed"
+          title="Vendors cannot RSVP to events"
+        >
+          Vendors cannot RSVP
+        </button>
+      );
+    }
+
     if (!session) {
       return (
         <button
           onClick={() => router.push('/signin')}
-          className="w-full sm:w-auto px-8 py-3 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 transition-all shadow-lg hover:shadow-green-900/30"
+          className="w-full sm:w-auto px-8 py-3 rounded-xl bg-primary text-white font-semibold hover:bg-primary/90 transition-all shadow-lg hover:shadow-primary/30"
         >
           Sign in to Join Event
         </button>
@@ -122,7 +135,7 @@ export default function RSVPButton({ eventId, onStatusChange }: RSVPButtonProps)
       return (
         <button
           onClick={handleRSVP}
-          className="w-full sm:w-auto px-8 py-3 rounded-xl font-semibold transition-all shadow-lg bg-yellow-500/10 text-yellow-500 border-2 border-yellow-500/20 hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20"
+          className="w-full sm:w-auto px-8 py-3 rounded-xl font-semibold transition-all shadow-lg bg-yellow-500/10 text-yellow-500 border-2 border-yellow-500/20 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20"
         >
           <span className="group flex items-center justify-center gap-2">
             <span className="group-hover:hidden flex items-center gap-2">
@@ -147,8 +160,8 @@ export default function RSVPButton({ eventId, onStatusChange }: RSVPButtonProps)
         onClick={handleRSVP}
         className={`w-full sm:w-auto px-8 py-3 rounded-xl font-semibold transition-all shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900 ${
           booking
-            ? 'bg-green-600/10 text-green-400 border-2 border-green-600/20 hover:bg-red-600/10 hover:text-red-400 hover:border-red-600/20 focus:ring-green-500'
-            : 'bg-green-600 text-white hover:bg-green-700 hover:shadow-green-900/30 focus:ring-green-500'
+            ? 'bg-primary/10 text-primary border-2 border-primary/20 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/20 focus:ring-primary'
+            : 'bg-primary text-white hover:bg-primary/90 hover:shadow-primary/30 focus:ring-primary'
         }`}
       >
         {booking ? (

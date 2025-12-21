@@ -1,14 +1,17 @@
 "use client";
 
-import { Calendar, Ticket, Search, Plus, Sparkles } from "lucide-react";
+import { Calendar, Ticket, Search, Plus, Sparkles, LucideIcon } from "lucide-react";
 
 interface EmptyStateProps {
-  type: "my-events" | "attending" | "discover" | "favorites" | "recently-viewed";
+  type?: "my-events" | "attending" | "discover" | "favorites" | "recently-viewed";
   onAction?: () => void;
   filtered?: boolean;
+  icon?: LucideIcon;
+  title?: string;
+  description?: string;
 }
 
-export function EmptyState({ type, onAction, filtered = false }: EmptyStateProps) {
+export function EmptyState({ type, onAction, filtered = false, icon: Icon, title, description }: EmptyStateProps) {
   const states = {
     "my-events": {
       icon: Calendar,
@@ -19,8 +22,8 @@ export function EmptyState({ type, onAction, filtered = false }: EmptyStateProps
       actionLabel: filtered ? "Clear Filters" : "Create Your First Event",
       illustration: (
         <div className="relative mb-6">
-          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-green-500/20 to-emerald-500/10 flex items-center justify-center">
-            <Calendar size={48} className="text-green-500" />
+          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+            <Calendar size={48} className="text-primary" />
           </div>
           <div className="absolute -top-2 -right-8 w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center border border-zinc-700">
             <Plus size={20} className="text-zinc-400" />
@@ -37,8 +40,8 @@ export function EmptyState({ type, onAction, filtered = false }: EmptyStateProps
       actionLabel: filtered ? "Clear Filters" : "Discover Events",
       illustration: (
         <div className="relative mb-6">
-          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-blue-500/20 to-cyan-500/10 flex items-center justify-center">
-            <Ticket size={48} className="text-blue-500" />
+          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+            <Ticket size={48} className="text-primary" />
           </div>
           <div className="absolute -bottom-2 -right-4 flex -space-x-2">
             {[...Array(3)].map((_, i) => (
@@ -63,8 +66,8 @@ export function EmptyState({ type, onAction, filtered = false }: EmptyStateProps
       actionLabel: filtered ? "Clear Filters" : undefined,
       illustration: (
         <div className="relative mb-6">
-          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-purple-500/20 to-pink-500/10 flex items-center justify-center">
-            <Search size={48} className="text-purple-500" />
+          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center">
+            <Search size={48} className="text-primary" />
           </div>
           <div className="absolute top-0 right-4 animate-pulse">
             <Sparkles size={24} className="text-amber-400" />
@@ -98,9 +101,9 @@ export function EmptyState({ type, onAction, filtered = false }: EmptyStateProps
       actionLabel: "Discover Events",
       illustration: (
         <div className="relative mb-6">
-          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-cyan-500/20 to-teal-500/10 flex items-center justify-center">
+          <div className="w-32 h-32 mx-auto rounded-full bg-linear-to-br from-primary/20 to-primary/10 flex items-center justify-center">
             <svg
-              className="w-12 h-12 text-cyan-500"
+              className="w-12 h-12 text-primary"
               fill="none"
               stroke="currentColor"
               strokeWidth={2}
@@ -118,19 +121,31 @@ export function EmptyState({ type, onAction, filtered = false }: EmptyStateProps
     },
   };
 
-  const state = states[type];
+  const state = type ? states[type] : null;
+  const DisplayIcon = Icon || state?.icon;
+  const displayTitle = title || state?.title;
+  const displayDescription = description || state?.description;
 
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4">
-      {state.illustration}
-      <h3 className="text-xl font-semibold text-white mb-2">{state.title}</h3>
+      {state?.illustration ? (
+        state.illustration
+      ) : DisplayIcon ? (
+        <div className="relative mb-6">
+          <div className="w-32 h-32 mx-auto rounded-full bg-zinc-800/50 border border-zinc-700 flex items-center justify-center">
+            <DisplayIcon size={48} className="text-zinc-400" />
+          </div>
+        </div>
+      ) : null}
+
+      <h3 className="text-xl font-semibold text-white mb-2">{displayTitle}</h3>
       <p className="text-zinc-400 text-center max-w-sm mb-6">
-        {state.description}
+        {displayDescription}
       </p>
-      {state.actionLabel && onAction && (
+      {state?.actionLabel && onAction && (
         <button
           onClick={onAction}
-          className="px-6 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl font-medium transition-all shadow-lg shadow-green-900/20 flex items-center gap-2"
+          className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-xl font-medium transition-all shadow-lg shadow-primary/20 flex items-center gap-2"
         >
           {type === "my-events" && !filtered && <Plus size={18} />}
           {state.actionLabel}

@@ -1,115 +1,144 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { MessageCircle, X, Send, Settings, Trash2, Lightbulb } from "lucide-react";
+import { 
+  MessageCircle, 
+  X, 
+  Send, 
+  Trash2, 
+  Sparkles, 
+  Globe, 
+  Bot, 
+  User, 
+  Minimize2,
+  RefreshCw,
+  ChevronDown
+} from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { Event } from "@/lib/supabase-types";
-import { searchEventLocally, prepareEventContextForLLM, searchWeb } from "@/lib/event-search";
+import { searchEventLocally, prepareEventContextForLLM } from "@/lib/event-search";
 import { useAuth } from "@/context/AuthContext";
+import { cn } from "@/lib/utils";
 
 interface ChatMessage {
   id: string;
   type: "user" | "bot" | "error";
   content: string;
   source?: "local" | "AI" | "web";
-  responseTime?: number; // milliseconds
+  responseTime?: number;
 }
 
 interface EventChatbotProps {
   event: Event;
 }
 
-// Simple Markdown parser for basic formatting
-function parseMarkdown(text: string) {
-  // Convert **bold** to <strong>
-  text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  // Convert *italic* to <em>
-  text = text.replace(/\*(.+?)\*/g, "<em>$1</em>");
-  // Convert * list items to • with proper spacing
-  text = text.replace(/^\* /gm, "• ");
-  return text;
-}
+// Quick prompts for the user
+const QUICK_PROMPTS = [
+  "When does it start?",
+  "Where is the venue?",
+  "Ticket prices?",
+  "Who is performing?",
+  "Is there parking?",
+];
 
 export function EventChatbot({ event }: EventChatbotProps) {
   const { session } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
   const [enableWebSearch, setEnableWebSearch] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
       type: "bot",
-      content: "Hi! 👋 Ask me any questions about this event. I can help with schedules, performers, FAQs, location, and more!",
+      content: `Hi! I'm your AI assistant for **${event.event_name}**. Ask me anything!`,
       source: "local",
     },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [recommendations, setRecommendations] = useState<string[]>([]);
-  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [rateLimitUntil, setRateLimitUntil] = useState<number | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const eventContextRef = useRef<string>("");
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Cache event context once when chatbot opens
+  // Cache event context
   useEffect(() => {
     if (isOpen && !eventContextRef.current) {
       eventContextRef.current = prepareEventContextForLLM(event);
     }
   }, [isOpen, event]);
 
+  // Load chat history
   const loadChatHistory = useCallback(async () => {
-    if (!session) {
-      return;
-    }
+    if (!session) return;
 
     try {
       const response = await fetch(`/api/chat-history?eventId=${event.id}`, {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
       if (response.ok) {
         const data = await response.json();
         if (data.messages && data.messages.length > 0) {
           setMessages((prev) => {
-            // Keep welcome message, add loaded history
             const welcomeMsg = prev[0];
-            return [welcomeMsg, ...data.messages];
+            // Filter out duplicates if any
+            const newMessages = data.messages.filter((m: ChatMessage) => m.id !== "welcome");
+            return [welcomeMsg, ...newMessages];
           });
         }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(
-          "[EventChatbot] Failed to load history:",
-          response.status,
-          errorData.code,
-          errorData.details || errorData.error
-        );
       }
     } catch (error) {
-      console.error("[EventChatbot] Error loading chat history:", error);
+      console.error("[EventChatbot] Error loading history:", error);
     }
   }, [session, event.id]);
 
-  // Load chat history when chatbot opens
   useEffect(() => {
     if (isOpen && session) {
       loadChatHistory();
     }
   }, [isOpen, session, loadChatHistory]);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Rate limit timer
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  const saveChatMessage = async (message: ChatMessage) => {
-    if (!session) {
+    if (!rateLimitUntil) {
+      setTimeRemaining("");
       return;
     }
 
+    const updateTimer = () => {
+      const now = Date.now();
+      if (now >= rateLimitUntil) {
+        setRateLimitUntil(null);
+        setTimeRemaining("");
+      } else {
+        const minutes = Math.ceil((rateLimitUntil - now) / 60000);
+        setTimeRemaining(`${minutes}m`);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000); // Update every second for smoother countdown if needed, but minute is fine. Let's do 1s to be safe on transitions.
+    return () => clearInterval(interval);
+  }, [rateLimitUntil]);
+
+  // Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (isOpen && !isMinimized) {
+      setTimeout(() => inputRef.current?.focus(), 300);
+    }
+  }, [isOpen, isMinimized]);
+
+  const saveChatMessage = async (message: ChatMessage) => {
+    if (!session) return;
     try {
-      const response = await fetch("/api/chat-history", {
+      await fetch("/api/chat-history", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -117,39 +146,24 @@ export function EventChatbot({ event }: EventChatbotProps) {
         },
         body: JSON.stringify({
           eventId: event.id,
-          message: {
-            id: message.id,
-            type: message.type,
-            content: message.content,
-            source: message.source,
-            responseTime: message.responseTime,
-          },
+          message,
         }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error(
-          "[EventChatbot] Save failed:",
-          response.status,
-          errorData.code,
-          errorData.details || errorData.error
-        );
-      }
     } catch (error) {
-      console.error("[EventChatbot] Error saving chat message:", error);
+      console.error("[EventChatbot] Error saving message:", error);
     }
   };
 
   const clearChatHistory = async () => {
-    if (!session) return;
+    if (!session) {
+      setMessages([messages[0]]); // Reset to welcome
+      return;
+    }
 
     try {
       const response = await fetch(`/api/chat-history?eventId=${event.id}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       });
 
       if (response.ok) {
@@ -157,85 +171,43 @@ export function EventChatbot({ event }: EventChatbotProps) {
           {
             id: "welcome",
             type: "bot",
-            content: "Hi! 👋 Ask me any questions about this event. I can help with schedules, performers, FAQs, location, and more!",
+            content: `Chat cleared. How else can I help you with **${event.event_name}**?`,
             source: "local",
           },
         ]);
-        setRecommendations([]);
-        setShowRecommendations(false);
-      } else {
-        console.error("[EventChatbot] Clear failed:", response.status);
       }
     } catch (error) {
-      console.error("[EventChatbot] Error clearing chat history:", error);
+      console.error("[EventChatbot] Error clearing history:", error);
     }
   };
 
-  const generateRecommendations = async () => {
-    if (!messages || messages.length < 2) return; // Need at least some conversation
-
-    try {
-      const conversationHistory = messages
-        .filter((m) => m.type !== "error")
-        .slice(-6)
-        .map((m) => ({
-          role: m.type === "user" ? "user" : "model",
-          content: m.content,
-        }));
-
-      const response = await fetch("/api/recommendations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          conversationHistory,
-          eventContext: eventContextRef.current,
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setRecommendations(data.suggestions || []);
-        setShowRecommendations(true);
-      }
-    } catch (error) {
-      console.error("Error generating recommendations:", error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!input.trim()) return;
+  const handleSendMessage = async (text: string = input) => {
+    if (!text.trim() || isLoading) return;
 
     const startTime = performance.now();
-
-    // Add user message
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       type: "user",
-      content: input,
+      content: text,
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    
-    // Save user message to history (fire and forget)
-    if (session) {
-      saveChatMessage(userMessage).catch((err) =>
-        console.error("[EventChatbot] Failed to save user message:", err)
-      );
-    }
-    
     setInput("");
     setIsLoading(true);
 
+    if (session) saveChatMessage(userMessage);
+
     try {
-      // First, try local search
-      const localMatch = searchEventLocally(input, event);
+      const explicitWebSearch = /search online|web search|google|internet/i.test(text);
+      const shouldSearchWeb = enableWebSearch || explicitWebSearch;
+
+      // 1. Try local search first (if web search not forced)
+      let localMatch = null;
+      if (!shouldSearchWeb) {
+        localMatch = searchEventLocally(text, event);
+      }
 
       if (localMatch) {
-        // Found a match locally, return it immediately
         const responseTime = Math.round(performance.now() - startTime);
         const botMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
@@ -245,17 +217,12 @@ export function EventChatbot({ event }: EventChatbotProps) {
           responseTime,
         };
         setMessages((prev) => [...prev, botMessage]);
+        if (session) saveChatMessage(botMessage);
         setIsLoading(false);
         return;
       }
 
-      // No local match, use AI fallback (optionally with web search context)
-      let webContext = "";
-      if (enableWebSearch) {
-        webContext = (await searchWeb(input)) || "";
-      }
-      
-      // Build conversation history (last 5 messages for context)
+      // 2. AI Fallback
       const conversationHistory = messages
         .filter((m) => m.type !== "error")
         .slice(-5)
@@ -263,242 +230,323 @@ export function EventChatbot({ event }: EventChatbotProps) {
           role: m.type === "user" ? "user" : "model",
           content: m.content,
         }));
-      
+
       const response = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          question: input,
+          question: text,
           eventContext: eventContextRef.current,
-          webContext: webContext || undefined,
+          useWebSearch: shouldSearchWeb,
           conversationHistory,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error("[7] ERROR - API failed with status", response.status);
-        console.error("Error details:", errorData);
-        throw new Error(`AI API failed with status ${response.status}: ${JSON.stringify(errorData)}`);
+      if (response.status === 429) {
+        setRateLimitUntil(Date.now() + 15 * 60 * 1000); // 15 minutes
+        setEnableWebSearch(false);
+        
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            type: "error",
+            content: "Gemini rate limit reached. Web search has been temporarily disabled for 15 minutes. You can still chat with the local event assistant.",
+          },
+        ]);
+        setIsLoading(false);
+        return;
       }
+
+      if (!response.ok) throw new Error("Failed to get response");
 
       const data = await response.json();
-
-      if (data.error) {
-        console.error("API returned error in response:", data.error, data.details);
-        throw new Error(data.error);
-      }
-
       const responseTime = Math.round(performance.now() - startTime);
+      
       const botMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: "bot",
         content: data.answer,
-        source: webContext ? "web" : "AI",
+        source: data.source === "web" ? "web" : "AI",
         responseTime,
       };
 
       setMessages((prev) => [...prev, botMessage]);
-      
-      // Save user message and bot response to history (fire and forget)
-      if (session) {
-        saveChatMessage(botMessage).catch((err) =>
-          console.error("[EventChatbot] Failed to save bot message:", err)
-        );
-      }
+      if (session) saveChatMessage(botMessage);
+
     } catch (error) {
       console.error("Chat error:", error);
-      console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
-
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        type: "error",
-        content: "Sorry, I couldn't find an answer to that question. Please try rephrasing or contact the event organizer.",
-      };
-
-      setMessages((prev) => [...prev, errorMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          type: "error",
+          content: "Sorry, I encountered an error. Please try again.",
+        },
+      ]);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
+    }
+  };
+
+  // Render Markdown-like text safely
+  const renderContent = (text: string) => {
+    // Basic formatting: **bold**, *italic*, • lists
+    let formatted = text
+      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/^\* /gm, "• ")
+      .replace(/\n/g, "<br />");
+    
+    return <div dangerouslySetInnerHTML={{ __html: formatted }} />;
+  };
+
   return (
     <>
-      {/* Floating Chat Button */}
-      {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 w-14 h-14 bg-green-600 hover:bg-green-700 rounded-full shadow-lg flex items-center justify-center text-white transition-all duration-200 z-40"
-          aria-label="Open event chatbot"
-        >
-          <MessageCircle className="w-6 h-6" />
-        </button>
-      )}
+      {/* Floating Action Button */}
+      <AnimatePresence>
+        {!isOpen && (
+          <motion.button
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setIsOpen(true)}
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-linear-to-r from-green-600 to-emerald-600 text-white rounded-full shadow-lg shadow-green-900/20 hover:shadow-green-900/40 transition-all duration-300 group"
+          >
+            <div className="relative">
+              <MessageCircle size={24} />
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-green-600 animate-pulse" />
+            </div>
+            <span className="font-semibold pr-1">Ask AI Assistant</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
 
       {/* Chat Window */}
-      {isOpen && (
-        <div className="fixed bottom-6 right-6 w-96 h-[600px] bg-white dark:bg-zinc-900 rounded-lg shadow-2xl flex flex-col z-50 border border-zinc-200 dark:border-zinc-700">
-          {/* Header */}
-          <div className="bg-green-600 text-white p-4 rounded-t-lg flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold">Event Assistant</h3>
-              <p className="text-xs text-green-100">Ask about this event</p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowSettings(!showSettings)}
-                className="hover:bg-green-700 p-2 rounded-lg transition-colors"
-                aria-label="Open settings"
-              >
-                <Settings className="w-5 h-5" />
-              </button>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="hover:bg-green-700 p-2 rounded-lg transition-colors"
-                aria-label="Close chatbot"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Settings Panel */}
-          {showSettings && (
-            <div className="bg-green-50 dark:bg-zinc-800 border-b border-green-200 dark:border-zinc-700 p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  🌐 Enable Web Search
-                </label>
-                <input
-                  type="checkbox"
-                  checked={enableWebSearch}
-                  onChange={(e) => setEnableWebSearch(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 cursor-pointer"
-                />
-              </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                {enableWebSearch
-                  ? "AI can search the web for additional context"
-                  : "AI will only use event data"}
-              </p>
-              
-              <div className="border-t border-green-200 dark:border-zinc-700 pt-4 flex gap-2">
-                <button
-                  onClick={clearChatHistory}
-                  className="flex-1 text-xs bg-red-100 hover:bg-red-200 dark:bg-red-900 dark:hover:bg-red-800 text-red-900 dark:text-red-100 px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-1"
-                  title="Clear conversation history"
-                >
-                  <Trash2 className="w-3 h-3" />
-                  Clear History
-                </button>
-                <button
-                  onClick={generateRecommendations}
-                  disabled={isLoading || messages.length < 2}
-                  className="flex-1 text-xs bg-blue-100 hover:bg-blue-200 dark:bg-blue-900 dark:hover:bg-blue-800 text-blue-900 dark:text-blue-100 px-3 py-2 rounded-lg transition-colors flex items-center justify-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Get AI suggestions for follow-up questions"
-                >
-                  <Lightbulb className="w-3 h-3" />
-                  Suggest
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Messages Container */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 dark:bg-zinc-800">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`max-w-xs px-4 py-2 rounded-lg ${
-                    message.type === "user"
-                      ? "bg-green-600 text-white rounded-br-none"
-                      : message.type === "error"
-                        ? "bg-red-100 dark:bg-red-900 text-red-900 dark:text-red-100 rounded-bl-none"
-                        : "bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 rounded-bl-none border border-gray-200 dark:border-zinc-600"
-                  }`}
-                >
-                  <p 
-                    className="text-sm leading-relaxed whitespace-pre-wrap"
-                    dangerouslySetInnerHTML={{ __html: parseMarkdown(message.content) }}
-                  />
-                  {message.source && (
-                    <p className="text-xs mt-1 opacity-70">
-                      {message.source === "local" && "📚 From event data"}
-                      {message.source === "AI" && "🔶 Llama 3.1 powered"}
-                      {message.source === "web" && "🟢 Gemini + Llama 3.1 powered"}
-                      {message.responseTime && ` • ${message.responseTime}ms`}
-                    </p>
-                  )}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: 20, scale: 0.95 }}
+            animate={{ 
+              opacity: 1, 
+              y: 0, 
+              scale: 1,
+              height: isMinimized ? "auto" : "600px",
+              width: isMinimized ? "320px" : "380px"
+            }}
+            exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            transition={{ duration: 0.2 }}
+            className={cn(
+              "fixed bottom-6 right-6 z-50 bg-zinc-900 border border-zinc-700/50 rounded-2xl shadow-2xl overflow-hidden flex flex-col",
+              isMinimized ? "w-80" : "w-full max-w-[380px] sm:w-[380px]"
+            )}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 bg-linear-to-r from-zinc-800 to-zinc-900 border-b border-zinc-700/50 cursor-pointer"
+                 onClick={() => !isMinimized && setIsMinimized(true)}>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-linear-to-br from-green-500 to-emerald-600 flex items-center justify-center shadow-lg">
+                  <Bot size={20} className="text-white" />
                 </div>
-              </div>
-            ))}
-
-            {isLoading && (
-              <div className="flex justify-start">
-                <div className="bg-white dark:bg-zinc-700 text-gray-900 dark:text-gray-100 px-4 py-2 rounded-lg rounded-bl-none border border-gray-200 dark:border-zinc-600">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100" />
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200" />
+                <div>
+                  <h3 className="font-bold text-white text-sm">Event Assistant</h3>
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                    <span className="text-xs text-zinc-400">Online</span>
                   </div>
                 </div>
               </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Recommendations Section */}
-          {showRecommendations && recommendations.length > 0 && (
-            <div className="border-t border-zinc-200 dark:border-zinc-700 bg-blue-50 dark:bg-zinc-800 p-3">
-              <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">💡 Suggested questions:</p>
-              <div className="flex flex-col gap-2">
-                {recommendations.map((suggestion, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setInput(suggestion);
-                      setShowRecommendations(false);
-                    }}
-                    className="text-xs text-left bg-white dark:bg-zinc-700 hover:bg-blue-100 dark:hover:bg-zinc-600 text-gray-700 dark:text-gray-300 px-3 py-2 rounded-lg transition-colors border border-blue-200 dark:border-zinc-600"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsMinimized(!isMinimized); }}
+                  className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-700/50 rounded-lg transition-colors"
+                >
+                  {isMinimized ? <ChevronDown size={18} className="rotate-180" /> : <Minimize2 size={18} />}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsOpen(false); setIsMinimized(false); }}
+                  className="p-2 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                >
+                  <X size={18} />
+                </button>
               </div>
             </div>
-          )}
 
-          {/* Input Form */}
-          <form
-            onSubmit={handleSubmit}
-            className="border-t border-zinc-200 dark:border-zinc-700 p-4 bg-white dark:bg-zinc-900 rounded-b-lg"
-          >
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask a question..."
-                disabled={isLoading}
-                className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 dark:bg-zinc-800 dark:text-white disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+            {/* Main Content (Hidden when minimized) */}
+            {!isMinimized && (
+              <>
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-zinc-950/50 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+                  {messages.map((msg) => (
+                    <motion.div
+                      key={msg.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={cn(
+                        "flex gap-3 max-w-[85%]",
+                        msg.type === "user" ? "ml-auto flex-row-reverse" : "mr-auto"
+                      )}
+                    >
+                      {/* Avatar */}
+                      <div className={cn(
+                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1",
+                        msg.type === "user" ? "bg-zinc-700" : "bg-green-600/20 text-green-400"
+                      )}>
+                        {msg.type === "user" ? <User size={14} /> : <Bot size={14} />}
+                      </div>
+
+                      {/* Bubble */}
+                      <div className="flex flex-col gap-1">
+                        <div className={cn(
+                          "p-3 rounded-2xl text-sm leading-relaxed shadow-sm",
+                          msg.type === "user" 
+                            ? "bg-green-600 text-white rounded-tr-none" 
+                            : msg.type === "error"
+                            ? "bg-red-500/10 text-red-400 border border-red-500/20 rounded-tl-none"
+                            : "bg-zinc-800 text-zinc-200 border border-zinc-700/50 rounded-tl-none"
+                        )}>
+                          {renderContent(msg.content)}
+                        </div>
+                        
+                        {/* Metadata */}
+                        {msg.type === "bot" && (
+                          <div className="flex items-center gap-2 px-1">
+                            {msg.source === "web" && (
+                              <span className="flex items-center gap-1 text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full border border-blue-500/20">
+                                <Globe size={10} /> Web Search
+                              </span>
+                            )}
+                            {msg.source === "local" && (
+                              <span className="flex items-center gap-1 text-[10px] text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded-full border border-green-500/20">
+                                <Sparkles size={10} /> Event Data
+                              </span>
+                            )}
+                            {msg.responseTime && (
+                              <span className="text-[10px] text-zinc-600">
+                                {(msg.responseTime / 1000).toFixed(1)}s
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+
+                  {/* Typing Indicator */}
+                  {isLoading && (
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex gap-3 mr-auto max-w-[85%]"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-green-600/20 text-green-400 flex items-center justify-center shrink-0 mt-1">
+                        <Bot size={14} />
+                      </div>
+                      <div className="bg-zinc-800 p-4 rounded-2xl rounded-tl-none border border-zinc-700/50 flex gap-1.5 items-center h-10">
+                        <motion.div 
+                          animate={{ y: [0, -5, 0] }} 
+                          transition={{ repeat: Infinity, duration: 0.6, delay: 0 }}
+                          className="w-1.5 h-1.5 bg-zinc-500 rounded-full" 
+                        />
+                        <motion.div 
+                          animate={{ y: [0, -5, 0] }} 
+                          transition={{ repeat: Infinity, duration: 0.6, delay: 0.2 }}
+                          className="w-1.5 h-1.5 bg-zinc-500 rounded-full" 
+                        />
+                        <motion.div 
+                          animate={{ y: [0, -5, 0] }} 
+                          transition={{ repeat: Infinity, duration: 0.6, delay: 0.4 }}
+                          className="w-1.5 h-1.5 bg-zinc-500 rounded-full" 
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Quick Prompts */}
+                {messages.length < 3 && (
+                  <div className="px-4 py-2 flex gap-2 overflow-x-auto scrollbar-none mask-linear-fade">
+                    {QUICK_PROMPTS.map((prompt) => (
+                      <button
+                        key={prompt}
+                        onClick={() => handleSendMessage(prompt)}
+                        className="whitespace-nowrap px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 rounded-full border border-zinc-700 transition-colors shrink-0"
+                      >
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Input Area */}
+                <div className="p-4 bg-zinc-900 border-t border-zinc-800">
+                  {/* Controls */}
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <button
+                      onClick={() => !rateLimitUntil && setEnableWebSearch(!enableWebSearch)}
+                      disabled={!!rateLimitUntil}
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs font-medium px-2 py-1 rounded-md transition-all",
+                        rateLimitUntil
+                          ? "bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700"
+                          : enableWebSearch 
+                            ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" 
+                            : "text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+                      )}
+                    >
+                      <Globe size={12} />
+                      {rateLimitUntil ? `Retry in ${timeRemaining}` : `Web Search ${enableWebSearch ? "On" : "Off"}`}
+                    </button>
+
+                    <button
+                      onClick={clearChatHistory}
+                      className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-red-400 transition-colors px-2 py-1 rounded-md hover:bg-zinc-800"
+                      title="Clear History"
+                    >
+                      <Trash2 size={12} />
+                      Clear
+                    </button>
+                  </div>
+
+                  {/* Input Field */}
+                  <div className="relative flex items-end gap-2 bg-zinc-950 border border-zinc-800 rounded-xl p-2 focus-within:border-green-500/50 focus-within:ring-1 focus-within:ring-green-500/20 transition-all">
+                    <textarea
+                      ref={inputRef}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Ask about the event..."
+                      className="w-full bg-transparent text-sm text-white placeholder-zinc-500 resize-none focus:outline-none max-h-24 py-2 px-2 scrollbar-thin"
+                      rows={1}
+                      style={{ minHeight: "40px" }}
+                    />
+                    <button
+                      onClick={() => handleSendMessage()}
+                      disabled={!input.trim() || isLoading}
+                      className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all mb-0.5 shadow-lg shadow-green-900/20"
+                    >
+                      {isLoading ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
+                    </button>
+                  </div>
+                  <div className="text-[10px] text-zinc-600 text-center mt-2">
+                    AI can make mistakes. Verify important info.
+                  </div>
+                </div>
+              </>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }

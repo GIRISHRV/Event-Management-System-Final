@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useMemo } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useForm, SubmitHandler, Path, Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { eventSchema, EventFormSchema } from "@/lib/schemas";
@@ -12,6 +13,9 @@ import { VenueTab } from "./VenueTab";
 import { ScheduleTab } from "./ScheduleTab";
 import { GalleryTab } from "./GalleryTab";
 import { FaqsTab } from "./FaqsTab";
+import { AIChatInterface } from "@/components/ui/AIChatInterface";
+import { Button } from "@/components/ui/button";
+import { UnifiedModal } from "@/components/ui/UnifiedModal";
 
 interface EnhancedEventFormProps {
   event?: Event;
@@ -19,6 +23,7 @@ interface EnhancedEventFormProps {
   onClose: () => void;
   isLoading?: boolean;
   userEmail?: string;
+  onAIStateChange?: (isOpen: boolean) => void;
 }
 
 export function EnhancedEventForm({
@@ -27,8 +32,15 @@ export function EnhancedEventForm({
   onClose,
   isLoading = false,
   userEmail,
+  onAIStateChange,
 }: EnhancedEventFormProps) {
   const [currentTab, setCurrentTab] = useState<FormTab>('basic');
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  
+  useEffect(() => {
+    setPortalTarget(document.getElementById('ai-panel-slot'));
+  }, []);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const performerImageInputRef = useRef<HTMLInputElement>(null);
   const galleryImageInputRef = useRef<HTMLInputElement>(null);
@@ -109,7 +121,12 @@ export function EnhancedEventForm({
 
   const updateUiState = useCallback((updates: Partial<typeof uiState>) => {
     setUiState(prev => ({ ...prev, ...updates }));
-  }, []);
+    
+    // Handle side effects outside the state setter
+    if (updates.showAIInput !== undefined && onAIStateChange) {
+      onAIStateChange(updates.showAIInput);
+    }
+  }, [onAIStateChange]);
 
   // Helper to normalize text for comparison (removes extra spaces, trailing dots, etc.)
   const normalizeText = (text: string | undefined | null) => {
@@ -408,8 +425,10 @@ export function EnhancedEventForm({
     if (location.venue_landmark) setValue('venueLandmark', location.venue_landmark, { shouldValidate: true, shouldDirty: true });
   }, [setValue]);
 
-  const handleAIParseInstructions = async () => {
-    if (!uiState.aiInstructions.trim()) {
+  const handleAIParseInstructions = async (message?: string) => {
+    const instructionsToProcess = message || uiState.aiInstructions;
+
+    if (!instructionsToProcess.trim()) {
       toastError("Please enter event instructions");
       return;
     }
@@ -448,7 +467,7 @@ export function EnhancedEventForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          instructions: uiState.aiInstructions,
+          instructions: instructionsToProcess,
           conversationHistory: uiState.conversationHistory,
           currentEventData,
           isEditMode 
@@ -462,7 +481,7 @@ export function EnhancedEventForm({
       const result = await response.json();
 
       // Add user message to conversation
-      const newConversation = [...uiState.conversationHistory, { role: 'user' as const, content: uiState.aiInstructions }];
+      const newConversation = [...uiState.conversationHistory, { role: 'user' as const, content: instructionsToProcess }];
 
       // Check if AI needs more info
       if (result.needsMoreInfo && !result.allRequiredFieldsComplete) {
@@ -693,176 +712,59 @@ export function EnhancedEventForm({
     { id: 'faqs' as FormTab, label: 'FAQs', icon: HelpCircle },
   ], []);
 
+  const aiInterface = (
+    <AIChatInterface
+      messages={uiState.conversationHistory}
+      isThinking={uiState.isParsingAI}
+      isDone={uiState.allRequiredComplete}
+      onSendMessage={handleAIParseInstructions}
+      onClose={() => {
+        updateUiState({
+          showAIInput: false,
+          conversationHistory: [],
+          aiQuestion: null,
+          aiInstructions: '',
+          allRequiredComplete: false
+        });
+      }}
+      title={isEditMode ? 'AI Event Editor' : 'AI Event Creator'}
+      fullHeight={!!portalTarget}
+      placeholder={
+        uiState.conversationHistory.length === 0
+          ? (isEditMode 
+              ? "Example: Change the event date to next Friday and add a new performer named John Doe..."
+              : "Example: I want to create a music festival called 'Summer Beats' happening next month...")
+          : uiState.aiQuestion || "Type your response..."
+      }
+    />
+  );
+
   return (
     <div className="space-y-6">
 
       {/* AI Instructions Input (for both create and edit) */}
       {uiState.showAIInput && (
-        <div className="bg-linear-to-r from-green-900/20 to-blue-900/20 border border-green-500/30 rounded-lg p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-green-400">
-              <Sparkles size={20} />
-              <h3 className="font-semibold">
-                {isEditMode ? 'AI Event Editor' : 'AI Event Creator'}
-              </h3>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                updateUiState({
-                  showAIInput: false,
-                  conversationHistory: [],
-                  aiQuestion: null,
-                  aiInstructions: '',
-                  allRequiredComplete: false
-                });
-              }}
-              className="text-gray-400 hover:text-gray-300"
-            >
-              <X size={18} />
-            </button>
-          </div>
-          
-          {uiState.conversationHistory.length === 0 ? (
-            <p className="text-sm text-gray-400">
-              {isEditMode 
-                ? "Tell me what you'd like to change about this event. I'll update the fields for you!"
-                : "Describe your event in plain English and I'll help you create it! I'll ask follow-up questions if I need more details."}
-            </p>
-          ) : (
-            <div className="space-y-3 max-h-80 overflow-y-auto bg-zinc-900/50 rounded-lg p-4">
-              {uiState.conversationHistory.map((msg, index) => (
-                <div 
-                  key={index} 
-                  className={`p-3 rounded-lg ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-900/30 border border-blue-500/30 ml-8' 
-                      : 'bg-green-900/30 border border-green-500/30 mr-8'
-                  }`}
-                >
-                  <div className="text-xs text-gray-400 mb-1">
-                    {msg.role === 'user' ? 'You' : 'AI Assistant'}
-                  </div>
-                  <div className="text-sm text-white whitespace-pre-wrap">
-                    {msg.content}
-                  </div>
-                </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-          )}
-
-          <textarea
-            value={uiState.aiInstructions}
-            onChange={(e) => updateUiState({ aiInstructions: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleAIParseInstructions();
-              }
-            }}
-            placeholder={
-              uiState.conversationHistory.length === 0
-                ? (isEditMode 
-                    ? "Example: Change the event date to next Friday and add a new performer named John Doe..."
-                    : "Example: I want to create a music festival called 'Summer Beats' happening next month...")
-                : uiState.aiQuestion || "Type your response..."
-            }
-            className="w-full px-4 py-3 bg-zinc-800 border border-zinc-600 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 min-h-24 resize-none"
-            disabled={uiState.isParsingAI}
-          />
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={handleAIParseInstructions}
-              disabled={uiState.isParsingAI || !uiState.aiInstructions.trim()}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-zinc-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
-            >
-              {uiState.isParsingAI ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Thinking...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={16} />
-                  {uiState.conversationHistory.length === 0 ? 'Start Conversation' : 'Send'}
-                </>
-              )}
-            </button>
-            {uiState.allRequiredComplete && (
-              <button
-                type="button"
-                onClick={() => {
-                  updateUiState({
-                    showAIInput: false,
-                    conversationHistory: [],
-                    aiQuestion: null,
-                    aiInstructions: '',
-                    allRequiredComplete: false
-                  });
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-              >
-                Done with AI - Review Form
-              </button>
-            )}
-            {uiState.conversationHistory.length === 0 && !uiState.allRequiredComplete && (
-              <button
-                type="button"
-                onClick={() => updateUiState({ showAIInput: false })}
-                className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors"
-              >
-                Fill Manually
-              </button>
-            )}
-            {uiState.conversationHistory.length > 0 && !uiState.allRequiredComplete && (
-              <button
-                type="button"
-                onClick={() => {
-                  updateUiState({
-                    conversationHistory: [],
-                    aiQuestion: null,
-                    aiInstructions: '',
-                    allRequiredComplete: false
-                  });
-                }}
-                className="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-lg transition-colors"
-              >
-                Start Over
-              </button>
-            )}
-          </div>
-          <p className="text-xs text-gray-500">
-            Press Enter to send, Shift+Enter for new line
-          </p>
-        </div>
+        portalTarget 
+          ? createPortal(aiInterface, portalTarget)
+          : aiInterface
       )}
 
       {/* AI Changes Confirmation Dialog */}
-      {uiState.showConfirmation && uiState.pendingChanges && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                <Sparkles className="text-green-400" size={24} />
-                Review AI Changes
-              </h3>
-              <button
-                onClick={() => {
-                  updateUiState({
-                    showConfirmation: false,
-                    pendingChanges: null,
-                    changeApprovals: {}
-                  });
-                }}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <p className="text-gray-400 text-sm mb-6">
+      <UnifiedModal
+        isOpen={uiState.showConfirmation && !!uiState.pendingChanges}
+        onClose={() => {
+          updateUiState({
+            showConfirmation: false,
+            pendingChanges: null,
+            changeApprovals: {}
+          });
+        }}
+        title="Review AI Changes"
+        size="lg"
+      >
+        {uiState.pendingChanges && (
+          <div className="space-y-6">
+            <p className="text-gray-400 text-sm">
               The AI wants to make the following changes. Check the boxes to approve individual changes:
             </p>
 
@@ -874,7 +776,7 @@ export function EnhancedEventForm({
                 return (
                   <div key={field} className="bg-zinc-800 rounded-lg border border-zinc-700">
                     <div
-                      className="flex items-start gap-3 p-3 hover:border-green-500/50 cursor-pointer transition"
+                      className="flex items-start gap-3 p-3 hover:border-primary/50 cursor-pointer transition"
                       onClick={() => {
                         updateUiState({
                           expandedChanges: {
@@ -897,7 +799,7 @@ export function EnhancedEventForm({
                           });
                         }}
                         onClick={(e) => e.stopPropagation()}
-                        className="mt-1 w-4 h-4 text-green-600 bg-zinc-700 border-zinc-600 rounded focus:ring-green-500"
+                        className="mt-1 w-4 h-4 text-primary bg-zinc-700 border-zinc-600 rounded focus:ring-primary"
                       />
                       <div className="flex-1">
                         <div className="font-medium text-white capitalize flex items-center gap-2">
@@ -919,9 +821,9 @@ export function EnhancedEventForm({
                         <div className="text-sm text-gray-400 mt-1">
                           {isArray ? (
                             <>
-                              <span className="text-red-400">{change.old} items</span>
+                              <span className="text-destructive">{change.old} items</span>
                               {' → '}
-                              <span className="text-green-400">{change.new} items</span>
+                              <span className="text-primary">{change.new} items</span>
                             </>
                           ) : (
                             <>
@@ -938,7 +840,7 @@ export function EnhancedEventForm({
                           <>
                             <div className="text-xs text-gray-500 mb-2">Array change detected:</div>
                             <div className="bg-zinc-900 rounded p-2">
-                              <div className="text-red-400 text-xs mb-2">Old ({change.old} items):</div>
+                              <div className="text-destructive text-xs mb-2">Old ({change.old} items):</div>
                               <pre className="text-xs text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto">
                                 {JSON.stringify(
                                   field === 'schedules' ? formData.schedules :
@@ -950,7 +852,7 @@ export function EnhancedEventForm({
                               </pre>
                             </div>
                             <div className="bg-zinc-900 rounded p-2">
-                              <div className="text-green-400 text-xs mb-2">New ({change.new} items):</div>
+                              <div className="text-primary text-xs mb-2">New ({change.new} items):</div>
                               <pre className="text-xs text-gray-300 whitespace-pre-wrap max-h-40 overflow-y-auto">
                                 {JSON.stringify(
                                   (uiState.pendingChanges?.data as Record<string, unknown>)?.[field] || [],
@@ -963,13 +865,13 @@ export function EnhancedEventForm({
                         ) : (
                           <>
                             <div className="bg-zinc-900 rounded p-2">
-                              <div className="text-red-400 text-xs mb-1">Old:</div>
+                              <div className="text-destructive text-xs mb-1">Old:</div>
                               <div className="text-gray-300 text-sm whitespace-pre-wrap">
                                 {change.old || '(empty)'}
                               </div>
                             </div>
                             <div className="bg-zinc-900 rounded p-2">
-                              <div className="text-green-400 text-xs mb-1">New:</div>
+                              <div className="text-primary text-xs mb-1">New:</div>
                               <div className="text-gray-300 text-sm whitespace-pre-wrap">
                                 {change.new}
                               </div>
@@ -987,7 +889,7 @@ export function EnhancedEventForm({
               <button
                 onClick={applyApprovedChanges}
                 disabled={!Object.values(uiState.changeApprovals).some(v => v)}
-                className="flex-1 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-zinc-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition"
+                className="flex-1 px-4 py-3 bg-primary hover:bg-primary/90 disabled:bg-zinc-600 disabled:cursor-not-allowed text-white rounded-lg font-medium transition"
               >
                 Apply Selected Changes
               </button>
@@ -1005,15 +907,16 @@ export function EnhancedEventForm({
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </UnifiedModal>
 
       {/* Tab Navigation */}
-      <div className="border-b border-zinc-700">
-        <nav className="-mb-px flex items-center justify-between overflow-x-auto">
-          <div className="flex space-x-8">
+      <div className="border-b border-zinc-800/50 mb-6">
+        <nav className="-mb-px flex items-center justify-between overflow-x-auto scrollbar-hide">
+          <div className="flex space-x-1">
             {tabs.map((tab) => {
               const Icon = tab.icon;
+              const isActive = currentTab === tab.id;
               return (
                 <button
                   key={tab.id}
@@ -1021,14 +924,16 @@ export function EnhancedEventForm({
                   onClick={() => {
                     setCurrentTab(tab.id);
                   }}
-                  className={`whitespace-nowrap pb-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                    currentTab === tab.id
-                      ? 'border-green-500 text-green-400'
-                      : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
-                  }`}
+                  className={`
+                    group relative min-w-[100px] py-3 px-3 font-medium text-sm flex items-center justify-center gap-2 transition-all duration-200
+                    ${isActive ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'}
+                  `}
                 >
-                  <Icon size={16} />
+                  <Icon size={16} className={`transition-colors ${isActive ? 'text-emerald-400' : 'text-zinc-500 group-hover:text-zinc-300'}`} />
                   {tab.label}
+                  {isActive && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-linear-to-r from-emerald-500 to-teal-500 rounded-t-full" />
+                  )}
                 </button>
               );
             })}
@@ -1036,14 +941,16 @@ export function EnhancedEventForm({
           
           {/* AI Mode Button */}
           {!uiState.showAIInput && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               onClick={() => updateUiState({ showAIInput: true })}
-              className="flex items-center gap-2 px-3 py-2 mb-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors shrink-0"
+              className="mb-2 ml-4 text-primary hover:text-primary/80 hover:bg-primary/10 gap-2"
             >
-              <Sparkles size={16} />
-              {event ? 'AI Edit' : 'AI Create'}
-            </button>
+              <Sparkles size={14} />
+              {event ? 'Use AI Assistant' : 'Use AI Assistant'}
+            </Button>
           )}
         </nav>
       </div>
@@ -1051,57 +958,67 @@ export function EnhancedEventForm({
       <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-6">
         {/* Basic Information Tab */}
         {currentTab === 'basic' && (
-          <BasicInfoTab
-            register={register}
-            errors={errors}
-            watch={watch}
-            isUploading={uiState.isUploading}
-            onImageUpload={handleImageUpload}
-            fileInputRef={fileInputRef}
-          />
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+            <BasicInfoTab
+              register={register}
+              errors={errors}
+              watch={watch}
+              isUploading={uiState.isUploading}
+              onImageUpload={handleImageUpload}
+              fileInputRef={fileInputRef}
+            />
+          </div>
         )}
 
         {/* Venue & Location Tab */}
         {currentTab === 'venue' && (
-          <VenueTab
-            register={register}
-            errors={errors}
-            watch={watch}
-            onLocationSelect={handleLocationSelect}
-          />
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+            <VenueTab
+              register={register}
+              errors={errors}
+              watch={watch}
+              onLocationSelect={handleLocationSelect}
+            />
+          </div>
         )}
 
         {/* Schedule & Performers Tab */}
         {currentTab === 'schedule-lineup' && (
-          <ScheduleTab
-            register={register}
-            control={control}
-            uploadingPerformerIndex={uiState.uploadingPerformerIndex}
-            onPerformerImageUpload={handlePerformerImageUpload}
-            performerImageInputRef={performerImageInputRef}
-          />
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+            <ScheduleTab
+              register={register}
+              control={control}
+              uploadingPerformerIndex={uiState.uploadingPerformerIndex}
+              onPerformerImageUpload={handlePerformerImageUpload}
+              performerImageInputRef={performerImageInputRef}
+            />
+          </div>
         )}
 
         {/* Gallery Tab */}
         {currentTab === 'gallery' && (
-          <GalleryTab
-            watch={watch}
-            setValue={setValue}
-            uploadingGalleryType={uiState.uploadingGalleryType}
-            onGalleryImageUpload={handleGalleryImageUpload}
-            onGalleryVideoUpload={handleGalleryVideoUpload}
-            galleryImageInputRef={galleryImageInputRef}
-            galleryVideoInputRef={galleryVideoInputRef}
-          />
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+            <GalleryTab
+              watch={watch}
+              setValue={setValue}
+              uploadingGalleryType={uiState.uploadingGalleryType}
+              onGalleryImageUpload={handleGalleryImageUpload}
+              onGalleryVideoUpload={handleGalleryVideoUpload}
+              galleryImageInputRef={galleryImageInputRef}
+              galleryVideoInputRef={galleryVideoInputRef}
+            />
+          </div>
         )}
 
         {/* FAQs Tab */}
         {currentTab === 'faqs' && (
-          <FaqsTab
-            register={register}
-            control={control}
-            errors={errors}
-          />
+          <div className="animate-in fade-in slide-in-from-right-2 duration-300">
+            <FaqsTab
+              register={register}
+              control={control}
+              errors={errors}
+            />
+          </div>
         )}
 
         {/* Form Actions */}
@@ -1116,7 +1033,7 @@ export function EnhancedEventForm({
           <button
             type="submit"
             disabled={isLoading}
-            className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:bg-green-600/50 text-white rounded-lg font-medium transition-colors"
+            className="px-6 py-2 bg-primary hover:bg-primary/90 disabled:bg-primary/50 text-white rounded-lg font-medium transition-colors"
           >
             {isLoading ? "Saving..." : (event ? "Update Event" : "Create Event")}
           </button>
@@ -1126,3 +1043,4 @@ export function EnhancedEventForm({
     </div>
   );
 }
+// End of component

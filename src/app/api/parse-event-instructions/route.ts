@@ -165,7 +165,8 @@ ${missing.length > 0 ? `Still missing (REQUIRED):\n- ${missing.join('\n- ')}` : 
     // Different prompts for create vs edit mode
     const systemPrompt = isEditMode ? 
     // EDIT MODE: Direct updates, no questions
-    `You are an AI assistant helping users edit existing events. Your PRIMARY goal is to identify what the user wants to change and ONLY change that.
+    `MODE: EDITING
+    You are an AI assistant helping users edit existing events. Your PRIMARY goal is to identify what the user wants to change and ONLY change that.
 
 ${contextMessage ? `\n${contextMessage}\n` : ''}
 
@@ -173,31 +174,8 @@ CRITICAL: You MUST ONLY respond with valid JSON. No other text, no markdown, no 
 
 === STEP 1: IDENTIFY WHAT TO UPDATE ===
 
-Read the user's message and determine which specific field(s) they're updating:
-
-Keywords that indicate FAQs:
-- "FAQ", "question", "Q&A", "frequently asked", "questions and answers"
-→ User wants to update ONLY the faqs array
-
-Keywords that indicate Description:
-- "description", "about", "details about the event", "event info"
-→ User wants to update ONLY eventDescription
-
-Keywords that indicate Schedule:
-- "schedule", "timeline", "agenda", "day 1", "day 2", "activities"
-→ User wants to update ONLY schedules array
-
-Keywords that indicate Performers:
-- "performer", "artist", "speaker", "lineup", "who is performing"
-→ User wants to update ONLY performers array
-
-Keywords that indicate Basic Info:
-- "event name", "date", "time", "organizer"
-→ User wants to update specific basicInfo field(s)
-
-Keywords that indicate Venue:
-- "location", "venue", "address", "where"
-→ User wants to update specific venue field(s)
+Read the user's message and determine which specific field(s) they're updating.
+Update the corresponding fields in the 'data' object IMMEDIATELY based on the request (Live Update).
 
 === STEP 2: RETURN ONLY CHANGED DATA ===
 
@@ -313,7 +291,8 @@ User: "Add schedule: Day 1, 9 AM - 5 PM, Opening Ceremony, Main Hall"
 NEVER return anything except pure JSON. Start with { and end with }`
     :
     // CREATE MODE: Conversational, ask for missing info
-    `You are a friendly AI assistant helping users create events. Have a natural conversation to gather all required information.
+    `MODE: CREATION
+    You are a friendly AI assistant helping users create events. Have a natural conversation to gather all required information.
 
 ${contextMessage ? `\n${contextMessage}\n` : ''}
 
@@ -335,13 +314,13 @@ OPTIONAL but helpful fields:
 - Performers/speakers
 - FAQs
 
-IMPORTANT: Extract and return ALL information collected SO FAR in every response, even if incomplete. This allows the form to fill in progressively.
+IMPORTANT: Extract and return ALL information collected SO FAR in every response, even if incomplete. This allows the form to fill in progressively (Live Update).
 
 Your job is to:
 1. Review what information the user has provided so far
 2. Extract ANY information you can from their message (event name, dates, times, etc.)
 3. Return the extracted data PLUS determine if you need more required fields
-4. If missing required fields, ask ONE clear question
+4. If missing required fields, ask ONE or TWO clear questions at a time. Do NOT ask for everything at once.
 5. If all required fields collected, acknowledge completion and offer to help with optional details
 
 === DATA STRUCTURE REFERENCE ===
@@ -397,7 +376,7 @@ RESPONSE FORMAT - ALWAYS include "partialData" with whatever you've extracted:
 FORMAT 1 - If required information is incomplete:
 {
   "needsMoreInfo": true,
-  "question": "Your friendly follow-up question here",
+  "question": "Your friendly follow-up question here (asking for 1-2 missing fields)",
   "partialData": {
     "basicInfo": {
       "eventName": "extracted name or omit",
@@ -451,14 +430,7 @@ FORMAT 3 - User adds optional info after required is complete:
   }
 }
 
-RULES:
-- Extract ALL information from every message
-- Return accumulated data in every response
-- Ask ONE question at a time for missing required fields
-- Once required fields are complete, offer to help with optional fields
-- Be conversational and friendly
-- NEVER return anything except pure JSON
-- Start your response with { and end with }`;
+NEVER return anything except pure JSON. Start with { and end with }`;
 
     console.log("[parse-event-instructions] Calling AI");
 

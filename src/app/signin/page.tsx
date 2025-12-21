@@ -33,62 +33,78 @@ export default function SignInPage() {
       }
 
       if (data?.session?.user) {
-        // Fetch user role to determine which dashboard to redirect to
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role, email")
-          .eq("id", data.session.user.id)
-          .single();
-
-        if (profileError) {
-          // console.error("Error fetching profile:", profileError);
-          
-          // If profile doesn't exist, create it with default role
-          if (profileError.code === 'PGRST116') {
-            // console.log("Profile not found, creating default profile...");
-            const { error: createError } = await supabase
-              .from("profiles")
-              .insert({
-                id: data.session.user.id,
-                email: data.session.user.email || email,
-                role: 'customer',
-                created_at: new Date().toISOString(),
-              });
-
-            if (createError) {
-              // console.error("Error creating profile:", createError);
-              setError("Could not create user profile");
-              return;
-            }
-            
-            // Default to customer dashboard for new profiles
-            router.push("/customer-dashboard");
-            return;
-          } else {
-            setError("Could not determine user role");
-            return;
-          }
-        }
-
-        // Redirect based on role - auth context will handle the session update
-        const role = profile?.role;
-        if (role === "vendor") {
-          router.push("/vendor-dashboard");
-        } else {
-          // Default to customer dashboard for any non-vendor users
-          router.push("/customer-dashboard");
-        }
+        await handlePostLogin(data.session.user.id, data.session.user.email || email);
       }
     } catch {
       setError("An unexpected error occurred");
-      // console.error(err);
     } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePostLogin = async (userId: string, userEmail: string) => {
+    // Fetch user role to determine which dashboard to redirect to
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role, email")
+      .eq("id", userId)
+      .single();
+
+    if (profileError) {
+      if (profileError.code === 'PGRST116') {
+        const { error: createError } = await supabase
+          .from("profiles")
+          .insert({
+            id: userId,
+            email: userEmail,
+            role: 'customer',
+            created_at: new Date().toISOString(),
+          });
+
+        if (createError) {
+          setError("Could not create user profile");
+          return;
+        }
+        router.push("/customer-dashboard");
+        return;
+      } else {
+        setError("Could not determine user role");
+        return;
+      }
+    }
+
+    const role = profile?.role;
+    if (role === "vendor") {
+      router.push("/vendor-dashboard");
+    } else {
+      router.push("/customer-dashboard");
+    }
+  };
+
+  const handleDevLogin = async (devEmail: string, devPassword: string) => {
+    setLoading(true);
+    setError("");
+    
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: devEmail,
+        password: devPassword,
+      });
+
+      if (signInError) throw signInError;
+
+      if (data?.session?.user) {
+        await handlePostLogin(data.session.user.id, data.session.user.email || devEmail);
+      }
+    } catch (err: any) {
+      setError(err.message || "Dev login failed");
       setLoading(false);
     }
   };
 
   const navItems = [
     { label: 'Home', href: '/' },
+    { label: 'Events', href: '/events' },
     { label: 'Sign In', href: '/signin' },
     { label: 'Sign Up', href: '/signup' }
   ];
@@ -104,7 +120,8 @@ export default function SignInPage() {
 
       {/* Form Container */}
       <div className="flex items-center justify-center min-h-[calc(100vh-80px)] px-4">
-        <div className="w-full max-w-md">
+        <div className="flex flex-col lg:flex-row gap-8 items-center lg:items-start justify-center w-full max-w-5xl">
+          <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
@@ -195,8 +212,43 @@ export default function SignInPage() {
               <ArrowLeft size={16} /> Back to Home
             </Link>
           </div>
+
         </div>
+
+        {/* Dev Login Buttons */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="w-full max-w-md lg:w-72 p-4 border border-dashed border-zinc-700 rounded-lg bg-zinc-900/50 lg:mt-0 mt-8">
+            <p className="text-xs text-zinc-500 mb-3 text-center uppercase tracking-wider font-semibold">Dev Quick Login</p>
+            <div className="space-y-2">
+              <button
+                onClick={() => handleDevLogin('customer@test.com', 'testtest')}
+                disabled={loading}
+                className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded border border-zinc-700 transition flex items-center justify-between group"
+              >
+                <span className="font-medium">Customer 1</span>
+                <span className="text-zinc-600 group-hover:text-zinc-500 font-mono">customer@test.com</span>
+              </button>
+              <button
+                onClick={() => handleDevLogin('customer2@test.com', 'testtest')}
+                disabled={loading}
+                className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded border border-zinc-700 transition flex items-center justify-between group"
+              >
+                <span className="font-medium">Customer 2</span>
+                <span className="text-zinc-600 group-hover:text-zinc-500 font-mono">customer2@test.com</span>
+              </button>
+              <button
+                onClick={() => handleDevLogin('vendor@test.com', 'testtest')}
+                disabled={loading}
+                className="w-full py-2 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs rounded border border-zinc-700 transition flex items-center justify-between group"
+              >
+                <span className="font-medium">Vendor</span>
+                <span className="text-zinc-600 group-hover:text-zinc-500 font-mono">vendor@test.com</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+    </div>
     </div>
   );
 }

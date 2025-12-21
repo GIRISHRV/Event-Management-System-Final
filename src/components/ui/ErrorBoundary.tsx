@@ -42,9 +42,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
       }
 
       return (
-        <div className="p-6 rounded-xl border border-red-500/20 bg-red-500/5 text-center">
-          <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-            <AlertTriangle className="w-6 h-6 text-red-500" />
+        <div className="p-6 rounded-xl border border-destructive/20 bg-destructive/5 text-center">
+          <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-6 h-6 text-destructive" />
           </div>
           <h3 className="text-lg font-semibold text-white mb-2">
             Something went wrong

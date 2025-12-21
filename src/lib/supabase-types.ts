@@ -69,10 +69,6 @@ export type Event = {
   // Timestamps
   created_at: string;
   updated_at: string;
-
-  // Legacy/computed fields for backward compatibility
-  event_highlights?: string[];
-  key_attractions?: string[];
 };
 
 // JSON Data Types (stored within events table)
@@ -153,3 +149,29 @@ export type Booking = {
 };
 
 // Add more types as needed based on your database schema
+
+export type VendorService = {
+  id: string;
+  vendor_id: string;
+  service_name: string;
+  description?: string;
+  base_price?: number;
+  price_unit?: string;
+  category?: string;
+  images?: string[];
+  created_at: string;
+  updated_at?: string;
+};
+
+export type ServiceRequest = {
+  id: string;
+  event_id: string;
+  service_id: string;
+  requester_id: string;
+  vendor_id: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
+  message?: string;
+  created_at: string;
+  updated_at?: string;
+};
+

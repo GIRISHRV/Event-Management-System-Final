@@ -95,7 +95,7 @@ export const EventCountdown = memo(function EventCountdown({
   if (compact) {
     if (timeLeft.isToday) {
       return (
-        <span className={`text-green-400 text-sm font-medium flex items-center gap-1 ${className}`}>
+        <span className={`text-primary text-sm font-medium flex items-center gap-1 ${className}`}>
           <Clock size={14} className="animate-pulse" />
           Today {startTime && `at ${startTime}`}
         </span>
@@ -156,7 +156,7 @@ export const EventCountdown = memo(function EventCountdown({
       </div>
       <span className="text-zinc-600 text-xl">:</span>
       <div className="text-center">
-        <div className="text-2xl font-bold text-green-400">{timeLeft.seconds}</div>
+        <div className="text-2xl font-bold text-primary">{timeLeft.seconds}</div>
         <div className="text-xs text-zinc-500 uppercase">Secs</div>
       </div>
     </div>

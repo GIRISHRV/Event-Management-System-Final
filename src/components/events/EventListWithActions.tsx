@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Calendar, Share2, Edit, Trash2, MoreHorizontal, X } from "lucide-react";
 import type { Event } from "@/lib/supabase-types";
-import { EventCardSkeleton } from "@/components/ui/Skeleton";
+import { EventCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { EventSearchFilter } from "./EventSearchFilter";
 
@@ -105,8 +105,9 @@ export function EventListWithActions({
           text: event.event_description || "Check out this event!",
           url,
         });
-      } catch {
-        // User cancelled or error
+      } catch (err) {
+        // User cancelled or share API not available
+        console.log('[EventListWithActions] Share cancelled:', err);
       }
     } else {
       await navigator.clipboard.writeText(url);
@@ -135,8 +136,8 @@ export function EventListWithActions({
     return (
       <div className="space-y-6">
         {showSearch && (
-          <div className="space-y-4 animate-pulse">
-            <div className="w-full h-12 bg-zinc-800/60 rounded-xl" />
+          <div className="space-y-4">
+            <Skeleton className="w-full h-12 rounded-xl" />
           </div>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -176,7 +177,7 @@ export function EventListWithActions({
             <div key={event.id} className="relative group">
               <Link
                 href={`/event/${event.id}`}
-                className="event-card-enhanced relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
+                className="event-card-enhanced relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-primary/30 cursor-pointer block"
                 style={{ aspectRatio: "3/4" }}
               >
                 {/* Background Image */}
@@ -202,15 +203,15 @@ export function EventListWithActions({
                 <div className="absolute inset-0 flex flex-col justify-end p-6">
                   {/* Date Badge */}
                   <div className="absolute top-6 right-6">
-                    <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center shadow-lg">
-                      <div className="text-xs font-bold text-zinc-800 uppercase tracking-wide">
+                    <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center shadow-lg border border-zinc-700/50">
+                      <div className="text-xs font-bold text-zinc-400 uppercase tracking-wide">
                         {event.start_date
                           ? new Date(event.start_date).toLocaleDateString("en", {
                               month: "short",
                             })
                           : "TBD"}
                       </div>
-                      <div className="text-lg font-bold text-zinc-900 leading-none">
+                      <div className="text-lg font-bold text-white leading-none">
                         {event.start_date
                           ? new Date(event.start_date).toLocaleDateString("en", {
                               day: "numeric",
@@ -268,7 +269,7 @@ export function EventListWithActions({
                       {type === "my-events" && onDelete && (
                         <button
                           onClick={(e) => handleDelete(event.id, e)}
-                          className="flex items-center gap-3 w-full px-4 py-3 text-sm text-red-400 hover:bg-zinc-800 hover:text-red-300 transition"
+                          className="flex items-center gap-3 w-full px-4 py-3 text-sm text-destructive hover:bg-zinc-800 hover:text-destructive/80 transition"
                         >
                           <Trash2 size={16} />
                           Delete Event

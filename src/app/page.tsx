@@ -11,6 +11,7 @@ import type { Event } from "@/lib/supabase-types";
 import PillNav from "@/components/layout/PillNav";
 import { EventCardSkeleton } from "@/components/ui/Skeleton";
 import { EventCountdown } from "@/components/ui/EventCountdown";
+import Squares from "@/components/ui/Squares";
 
 export default function Home() {
   const router = useRouter();
@@ -89,27 +90,43 @@ export default function Home() {
   const navItems = session 
     ? [
         { label: 'Home', href: '/' },
-        { label: 'Dashboard', href: userProfile?.role === 'customer' ? '/customer-dashboard' : '/vendor-dashboard' }
+        { label: 'Events', href: '/events' },
+        { label: 'Dashboard', href: userProfile?.role === 'customer' ? '/customer-dashboard' : '/vendor-dashboard' },
+        { label: 'Profile', href: '/profile' }
       ]
     : [
         { label: 'Home', href: '/' },
+        { label: 'Events', href: '/events' },
         { label: 'Sign In', href: '/signin' },
         { label: 'Sign Up', href: '/signup' }
       ];
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="fixed inset-0 z-0">
+        <Squares
+          direction="diagonal"
+          speed={0.5}
+          borderColor="rgba(34, 197, 94, 0.2)" // Green-500
+          squareSize={60}
+          hoverFillColor="rgba(34, 197, 94, 0.1)"
+        />
+      </div>
+
       {/* Navigation */}
-      <PillNav
-        items={navItems}
-        activeHref="/"
-        userEmail={session?.user?.email}
-        onSignOut={handleSignOut}
-        showAuth={!!session}
-      />
+      <div className="relative z-100">
+        <PillNav
+          items={navItems}
+          activeHref="/"
+          userEmail={session?.user?.email}
+          onSignOut={handleSignOut}
+          showAuth={!!session}
+        />
+      </div>
 
       {/* Hero Section */}
-      <div className="relative bg-linear-to-r from-green-900 to-green-800 overflow-hidden mt-20">
+      <div className="relative z-10 bg-linear-to-r from-green-900/90 to-green-800/90 overflow-hidden mt-20 backdrop-blur-sm border-y border-green-800/50">
         <div className="max-w-7xl mx-auto px-6 py-16">
           <div className="text-center">
             <h1 className="text-5xl lg:text-6xl font-bold text-white mb-4 leading-tight animate-fade-in">
@@ -123,7 +140,7 @@ export default function Home() {
             {session && userProfile ? (
               <button
                 onClick={handleGoToDashboard}
-                className="px-8 py-3 bg-white text-green-800 rounded-lg font-semibold hover:bg-gray-100 transition-all duration-200 hover:scale-105 flex items-center gap-2 mx-auto focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-green-800"
+                className="px-8 py-3 bg-white text-green-800 rounded-lg font-semibold hover:bg-gray-100 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center gap-2 mx-auto focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-green-800 shadow-lg shadow-green-900/20"
               >
                 Go to Dashboard <ArrowRight size={18} />
               </button>
@@ -131,13 +148,13 @@ export default function Home() {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/signin"
-                  className="px-8 py-3 bg-white text-green-800 rounded-lg font-semibold hover:bg-gray-100 transition-all duration-200 hover:scale-105 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-green-800"
+                  className="px-8 py-3 bg-white text-green-800 rounded-lg font-semibold hover:bg-gray-100 transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-green-800 shadow-lg shadow-green-900/20"
                 >
                   Sign In <ArrowRight size={18} />
                 </Link>
                 <Link
                   href="/signup"
-                  className="px-8 py-3 border-2 border-white text-white rounded-lg font-semibold hover:bg-white hover:text-green-800 transition-all duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-green-800"
+                  className="px-8 py-3 border-2 border-white text-white rounded-lg font-semibold hover:bg-white hover:text-green-800 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-green-800"
                 >
                   Create Account
                 </Link>
@@ -149,14 +166,14 @@ export default function Home() {
       </div>
 
       {/* Events Near You Section */}
-      <div className="max-w-7xl mx-auto px-6 py-20">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-20">
         <div className="flex items-center justify-between mb-12">
           <h2 className="text-4xl font-bold text-white">
             Events <span className="text-orange-400">Near You</span>
           </h2>
           <Link
-            href={session ? "/customer-dashboard" : "/signin"}
-            className="flex items-center gap-2 text-green-500 font-semibold hover:text-green-400 transition-all duration-200 hover:translate-x-1"
+            href="/events"
+            className="flex items-center gap-2 text-green-500 font-semibold hover:text-green-400 transition-all duration-200 hover:translate-x-1 active:scale-95"
           >
             See all <ArrowRight size={20} />
           </Link>

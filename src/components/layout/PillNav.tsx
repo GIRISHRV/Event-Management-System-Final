@@ -43,13 +43,13 @@ const PillNav: React.FC<PillNavProps> = ({
 
   return (
     <div 
-      className="fixed top-0 left-0 right-0 z-50 w-full border-b"
+      className="fixed top-0 left-0 right-0 z-100 w-full border-b"
       style={{
-        background: 'rgba(39, 39, 42, 0.3)',
-        backdropFilter: 'blur(5px)',
-        WebkitBackdropFilter: 'blur(5px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.3)'
+        background: 'rgba(24, 24, 27, 0.8)', // Increased opacity for better visibility
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+        boxShadow: '0 4px 30px rgba(0, 0, 0, 0.1)'
       }}
     >
       <nav
@@ -60,7 +60,7 @@ const PillNav: React.FC<PillNavProps> = ({
         <Link
           href="/"
           aria-label="Home"
-          className="rounded-full p-2 inline-flex items-center justify-center overflow-hidden text-2xl font-bold text-green-600 hover:text-green-500 transition-colors duration-300 h-12 w-12"
+          className="rounded-full p-2 inline-flex items-center justify-center overflow-hidden text-2xl font-bold text-primary hover:text-primary/90 transition-colors duration-300 h-12 w-12"
         >
           {logo ? (
             <Image src={logo} alt={logoAlt || 'Logo'} width={48} height={48} className="w-full h-full object-cover block" />
@@ -77,20 +77,16 @@ const PillNav: React.FC<PillNavProps> = ({
             {items.map((item, i) => {
               const isActive = activeHref === item.href;
 
-              const buttonStyle: React.CSSProperties = {
-                background: isActive ? 'rgba(34, 197, 94, 0.15)' : 'transparent',
-                color: isActive ? 'rgb(34, 197, 94)' : 'rgb(156, 163, 175)',
-                borderColor: isActive ? 'rgba(34, 197, 94, 0.3)' : 'rgba(75, 85, 99, 0.3)',
-                transition: 'all 0.2s ease'
-              };
-
               return (
                 <li key={`${item.href}-${i}`} role="none">
                   <Link
                     role="menuitem"
                     href={item.href}
-                    className="relative inline-flex items-center justify-center h-10 px-4 no-underline rounded-lg border font-medium text-sm whitespace-nowrap cursor-pointer transition-all duration-200 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/30"
-                    style={buttonStyle}
+                    className={`relative inline-flex items-center justify-center h-10 px-4 no-underline rounded-lg border font-medium text-sm whitespace-nowrap cursor-pointer transition-all duration-200 
+                      ${isActive 
+                        ? 'bg-primary/15 text-primary border-primary/30' 
+                        : 'text-gray-400 border-gray-600/30 hover:bg-primary/10 hover:text-primary hover:border-primary/30'
+                      }`}
                     aria-label={item.ariaLabel || item.label}
                   >
                     <span className="relative">
@@ -112,7 +108,7 @@ const PillNav: React.FC<PillNavProps> = ({
               </span>
               <button
                 onClick={onSignOut}
-                className="px-4 py-2 bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 hover:border-red-500/50 rounded-lg font-medium transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-destructive/15 hover:bg-destructive/25 text-destructive border border-destructive/30 hover:border-destructive/50 rounded-lg font-medium transition-colors flex items-center gap-2"
               >
                 <LogOut size={16} />
                 Sign Out
@@ -125,7 +121,7 @@ const PillNav: React.FC<PillNavProps> = ({
             onClick={toggleMobileMenu}
             aria-label="Toggle menu"
             aria-expanded={isMobileMenuOpen}
-            className="lg:hidden rounded-full border-0 flex items-center justify-center gap-1 cursor-pointer p-2 relative backdrop-blur-sm h-12 w-12 bg-white/10 border-white/10"
+            className="lg:hidden rounded-full border-0 flex items-center justify-center gap-1 cursor-pointer p-2 relative backdrop-blur-sm h-12 w-12 bg-zinc-800/50 border-zinc-700/50"
           >
             {isMobileMenuOpen ? <X className="text-gray-300" /> : <Menu className="text-gray-300" />}
           </button>
@@ -146,8 +142,8 @@ const PillNav: React.FC<PillNavProps> = ({
                     href={item.href}
                     className={`block py-3 px-4 text-sm font-medium rounded-lg transition-all duration-200 ${
                       isActive 
-                        ? 'bg-green-500/15 text-green-400 border border-green-500/30' 
-                        : 'text-gray-300 hover:bg-zinc-800 hover:text-green-400'
+                        ? 'bg-primary/15 text-primary border border-primary/30' 
+                        : 'text-gray-300 hover:bg-zinc-800 hover:text-primary'
                     }`}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
@@ -167,7 +163,7 @@ const PillNav: React.FC<PillNavProps> = ({
                 <li>
                   <button
                     onClick={onSignOut}
-                    className="w-full text-left py-2.5 px-4 text-sm font-medium rounded-lg text-red-400 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 hover:border-red-500/50 transition-all duration-200 flex items-center gap-2"
+                    className="w-full text-left py-2.5 px-4 text-sm font-medium rounded-lg text-destructive bg-destructive/15 hover:bg-destructive/25 border border-destructive/30 hover:border-destructive/50 transition-all duration-200 flex items-center gap-2"
                   >
                     <LogOut size={14} />
                     Sign Out

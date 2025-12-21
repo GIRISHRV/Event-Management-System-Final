@@ -51,7 +51,7 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl backdrop-blur-sm">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-blue-500/10 rounded-lg text-blue-500">
+            <div className="p-3 bg-primary/10 rounded-lg text-primary">
               <Users size={24} />
             </div>
             <div>
@@ -63,7 +63,7 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
         
         <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl backdrop-blur-sm">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-500/10 rounded-lg text-green-500">
+            <div className="p-3 bg-primary/10 rounded-lg text-primary">
               <UserCheck size={24} />
             </div>
             <div>
@@ -87,7 +87,7 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
 
         <div className="bg-zinc-900/50 border border-zinc-800 p-6 rounded-xl backdrop-blur-sm">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-red-500/10 rounded-lg text-red-500">
+            <div className="p-3 bg-destructive/10 rounded-lg text-destructive">
               <UserX size={24} />
             </div>
             <div>
@@ -112,7 +112,7 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
                 placeholder="Search guests..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white focus:outline-none focus:border-green-500 transition-colors"
+                className="w-full pl-10 pr-4 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-white focus:outline-none focus:border-primary transition-colors"
               />
             </div>
 
@@ -188,10 +188,10 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                         booking.status === 'confirmed'
-                          ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                          ? 'bg-primary/10 text-primary border-primary/20'
                           : booking.status === 'waitlist'
                           ? 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
-                          : 'bg-red-500/10 text-red-500 border-red-500/20'
+                          : 'bg-destructive/10 text-destructive border-destructive/20'
                       }`}>
                         {booking.status}
                       </span>
@@ -205,14 +205,14 @@ export function EventOrganizerView({ eventId, eventCapacity }: EventOrganizerVie
                           <>
                             <button
                               onClick={() => handleUpdateStatus(booking.id, 'confirmed')}
-                              className="p-2 bg-green-500/10 hover:bg-green-500/20 text-green-500 rounded-lg transition-colors"
+                              className="p-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-colors"
                               title="Approve"
                             >
                               <Check size={18} />
                             </button>
                             <button
                               onClick={() => handleUpdateStatus(booking.id, 'cancelled')}
-                              className="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors"
+                              className="p-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-colors"
                               title="Reject"
                             >
                               <X size={18} />

@@ -53,7 +53,8 @@ export const EventRecommendations = memo(function EventRecommendations({
       } else {
         throw new Error("Failed to fetch recommendations");
       }
-    } catch {
+    } catch (err) {
+      console.error('[EventRecommendations] Error:', err);
       setError("Unable to load recommendations");
     } finally {
       setLoading(false);

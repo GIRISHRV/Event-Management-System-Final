@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { Plus, Calendar, Globe, Ticket, LayoutGrid, CalendarDays, Map } from "lucide-react";
+import { Plus } from "lucide-react";
 import { EnhancedEventForm } from "@/components/event-form/EnhancedEventForm";
 import { EventListWithActions } from "@/components/events/EventListWithActions";
 import { PublicEventListWithFavorites } from "@/components/events/PublicEventListWithFavorites";
@@ -13,6 +13,9 @@ import { RecentlyViewed } from "@/components/events/RecentlyViewed";
 import { EventRecommendations } from "@/components/events/EventRecommendations";
 import { EventCalendarView } from "@/components/events/EventCalendarView";
 import { EventMapCluster } from "@/components/events/EventMapCluster";
+import VendorMarketplace from "@/components/customer/VendorMarketplace";
+import { DashboardHeader } from "@/components/customer/DashboardHeader";
+import { DashboardToolbar } from "@/components/customer/DashboardToolbar";
 import type { Event, CreateEventInput } from "@/lib/supabase-types";
 import { logError, getErrorMessage } from "@/lib/error-handler";
 import Squares from "@/components/ui/Squares";
@@ -27,13 +30,17 @@ export default function CustomerDashboardPage() {
   const { error: toastError, success: toastSuccess, Toast } = useToast();
   const [events, setEvents] = useState<Event[]>([]);
   const [bookedEvents, setBookedEvents] = useState<Event[]>([]);
-  const [eventsLoading, setEventsLoading] = useState(true); // Start true to show skeleton until data loads
-  const [bookedEventsLoading, setBookedEventsLoading] = useState(true); // Start true
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [bookedEventsLoading, setBookedEventsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | undefined>(undefined);
-  const [activeTab, setActiveTab] = useState<'my-events' | 'attending' | 'discover'>('my-events');
+  const [activeTab, setActiveTab] = useState<'my-events' | 'attending' | 'discover' | 'find-vendors'>('my-events');
   const [viewMode, setViewMode] = useState<'grid' | 'calendar' | 'map'>('grid');
+  const [isAIOpen, setIsAIOpen] = useState(false);
+
+  // Fake loading delay constant
+  const MIN_LOADING_TIME = 1500;
 
   // Get the next upcoming event
   const nextUpcomingEvent = useMemo(() => {
@@ -49,16 +56,13 @@ export default function CustomerDashboardPage() {
   }, [events, bookedEvents]);
 
   // Protect route - redirect if not customer
-  // Only redirect if: loading is done AND (no session OR not a customer)
   useEffect(() => {
     if (!loading) {
-      // Wait for profile to load - don't redirect until we know the role
       if (!session) {
         router.push("/signin");
       } else if (userProfile && userProfile.role !== "customer") {
         router.push("/vendor-dashboard");
       }
-      // If session exists but userProfile is null, wait for profile to load
     }
   }, [session, userProfile, loading, router]);
 
@@ -66,8 +70,9 @@ export default function CustomerDashboardPage() {
     if (!session?.user) return;
 
     setEventsLoading(true);
+    const startTime = Date.now();
+
     try {
-      // Query with available columns from database schema
       const { data, error } = await supabase
         .from("events")
         .select(`
@@ -76,7 +81,7 @@ export default function CustomerDashboardPage() {
           event_banner_url, visibility_type, event_status, 
           max_attendees,
           venue_name, venue_address, venue_city, venue_landmark, 
-          venue_type, google_maps_url,
+          venue_type, venue_latitude, venue_longitude, google_maps_url,
           organizer_name, organizer_contact,
           organizer_email,
           schedules, performers, faqs,
@@ -86,11 +91,8 @@ export default function CustomerDashboardPage() {
         .eq("user_email", session.user.email)
         .order("created_at", { ascending: false });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       
-      // Ensure all fields have proper defaults
       const eventsWithDefaults = (data || []).map(event => ({
         ...event,
         visibility_type: event.visibility_type || 'public',
@@ -110,7 +112,10 @@ export default function CustomerDashboardPage() {
       logError("fetchEvents", err);
       toastError(getErrorMessage(err));
     } finally {
-      setEventsLoading(false);
+      // Ensure minimum loading time
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
+      setTimeout(() => setEventsLoading(false), remaining);
     }
   }, [session?.user, toastError]);
 
@@ -118,6 +123,8 @@ export default function CustomerDashboardPage() {
     if (!session?.user) return;
 
     setBookedEventsLoading(true);
+    const startTime = Date.now();
+
     try {
       const { data, error } = await supabase
         .from("bookings")
@@ -132,12 +139,10 @@ export default function CustomerDashboardPage() {
 
       if (error) throw error;
 
-      // Extract events from the joined query
       const mappedEvents = (data || [])
         .map(booking => booking.events)
         .filter(event => event !== null) as unknown as Event[];
 
-      // Ensure defaults
       const eventsWithDefaults = mappedEvents.map(event => ({
         ...event,
         visibility_type: event.visibility_type || 'public',
@@ -156,7 +161,10 @@ export default function CustomerDashboardPage() {
       logError("fetchBookedEvents", err);
       toastError("Failed to load booked events");
     } finally {
-      setBookedEventsLoading(false);
+      // Ensure minimum loading time
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
+      setTimeout(() => setBookedEventsLoading(false), remaining);
     }
   }, [session?.user, toastError]);
 
@@ -268,6 +276,7 @@ export default function CustomerDashboardPage() {
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingEvent(undefined);
+    setIsAIOpen(false);
   };
 
   const handleEditEvent = (event: Event) => {
@@ -322,6 +331,7 @@ export default function CustomerDashboardPage() {
 
   const navItems = [
     { label: 'Home', href: '/' },
+    { label: 'Events', href: '/events' },
     { label: 'Dashboard', href: '/customer-dashboard' },
     { label: 'Profile', href: '/profile' }
   ];
@@ -354,110 +364,20 @@ export default function CustomerDashboardPage() {
 
           {/* Content */}
           <div className="relative z-20 max-w-7xl mx-auto px-6 py-12 pt-24">
-            {/* Header Section */}
-            <div className="flex items-center justify-between mb-8 bg-zinc-950/90 backdrop-blur-sm rounded-xl p-6 border border-zinc-700">
-              <div>
-                <h1 className="text-4xl font-bold text-white mb-2">
-                  {activeTab === 'my-events' ? 'My Events' : activeTab === 'attending' ? 'Attending' : 'Discover Events'}
-                </h1>
-                <p className="text-gray-400">
-                  {activeTab === 'my-events' 
-                    ? 'Create and manage your events'
-                    : activeTab === 'attending'
-                    ? 'Events you have RSVP\'d to'
-                    : 'Discover and RSVP to public events'
-                  }
-                </p>
-              </div>
-              {activeTab === 'my-events' && (
-                <button
-                  onClick={() => {
-                    setEditingEvent(undefined);
-                    setShowForm(true);
-                  }}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2"
-                >
-                  <Plus size={20} />
-                  Create Event
-                </button>
-              )}
-            </div>
+            <DashboardHeader 
+              activeTab={activeTab} 
+              onCreateEvent={() => {
+                setEditingEvent(undefined);
+                setShowForm(true);
+              }} 
+            />
 
-            {/* Tab Navigation */}
-            <div className="flex space-x-1 mb-4 bg-zinc-800/60 backdrop-blur-md rounded-xl p-1 border border-zinc-700/50 shadow-lg">
-              <button
-                onClick={() => setActiveTab('my-events')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset ${
-                  activeTab === 'my-events'
-                    ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/30'
-                }`}
-              >
-                <Calendar size={18} />
-                My Events
-              </button>
-              <button
-                onClick={() => setActiveTab('attending')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset ${
-                  activeTab === 'attending'
-                    ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/30'
-                }`}
-              >
-                <Ticket size={18} />
-                Attending
-              </button>
-              <button
-                onClick={() => setActiveTab('discover')}
-                className={`flex-1 px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-inset ${
-                  activeTab === 'discover'
-                    ? 'bg-zinc-900/90 text-white shadow-md backdrop-blur-sm'
-                    : 'text-zinc-400 hover:text-white hover:bg-white/30'
-                }`}
-              >
-                <Globe size={18} />
-                Discover Events
-              </button>
-            </div>
-
-            {/* View Mode Toggle */}
-            <div className="flex justify-end mb-4">
-              <div className="flex bg-zinc-800/60 backdrop-blur-md rounded-lg p-1 border border-zinc-700/50">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-md transition ${
-                    viewMode === 'grid'
-                      ? 'bg-green-600 text-white'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-                  }`}
-                  title="Grid View"
-                >
-                  <LayoutGrid size={18} />
-                </button>
-                <button
-                  onClick={() => setViewMode('calendar')}
-                  className={`p-2 rounded-md transition ${
-                    viewMode === 'calendar'
-                      ? 'bg-green-600 text-white'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-                  }`}
-                  title="Calendar View"
-                >
-                  <CalendarDays size={18} />
-                </button>
-                <button
-                  onClick={() => setViewMode('map')}
-                  className={`p-2 rounded-md transition ${
-                    viewMode === 'map'
-                      ? 'bg-green-600 text-white'
-                      : 'text-zinc-400 hover:text-white hover:bg-zinc-700'
-                  }`}
-                  title="Map View"
-                >
-                  <Map size={18} />
-                </button>
-              </div>
-            </div>
+            <DashboardToolbar
+              activeTab={activeTab}
+              onTabChange={(tab) => setActiveTab(tab as 'my-events' | 'attending' | 'discover' | 'find-vendors')}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
 
             {/* Upcoming Event Banner - Show on My Events and Attending tabs */}
             {(activeTab === 'my-events' || activeTab === 'attending') && nextUpcomingEvent && (
@@ -484,11 +404,12 @@ export default function CustomerDashboardPage() {
             )}
 
             {/* Tab Content */}
-            <div className="mb-8 bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-zinc-700 p-6">
+            <div className="mb-8 bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-zinc-700 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Calendar View */}
               {viewMode === 'calendar' && (
                 <EventCalendarView
                   events={activeTab === 'my-events' ? events : activeTab === 'attending' ? bookedEvents : [...events, ...bookedEvents]}
+                  isLoading={activeTab === 'my-events' ? eventsLoading : activeTab === 'attending' ? bookedEventsLoading : (eventsLoading || bookedEventsLoading)}
                 />
               )}
 
@@ -496,6 +417,7 @@ export default function CustomerDashboardPage() {
               {viewMode === 'map' && (
                 <EventMapCluster
                   events={activeTab === 'my-events' ? events : activeTab === 'attending' ? bookedEvents : [...events, ...bookedEvents]}
+                  isLoading={activeTab === 'my-events' ? eventsLoading : activeTab === 'attending' ? bookedEventsLoading : (eventsLoading || bookedEventsLoading)}
                 />
               )}
 
@@ -524,6 +446,8 @@ export default function CustomerDashboardPage() {
                     />
                   ) : activeTab === 'discover' ? (
                     <PublicEventListWithFavorites userId={session.user.id} />
+                  ) : activeTab === 'find-vendors' ? (
+                    <VendorMarketplace />
                   ) : null}
                 </>
               )}
@@ -532,16 +456,37 @@ export default function CustomerDashboardPage() {
 
           {/* Event Form Modal */}
           {showForm && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
-              <div className="bg-zinc-950 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl">
-                <div className="flex-1 overflow-y-auto p-6">
-                  <EnhancedEventForm
-                    event={editingEvent}
-                    onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
-                    onClose={handleCloseForm}
-                    isLoading={formLoading}
-                    userEmail={session.user.email || ""}
-                  />
+            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-200 backdrop-blur-sm overflow-x-auto">
+              <div className={`flex items-stretch gap-6 transition-all duration-500 w-full max-w-[95vw] ${isAIOpen ? '' : 'justify-center'}`}>
+                {/* AI Panel Slot */}
+                <div 
+                  id="ai-panel-slot" 
+                  className={`shrink-0 transition-all duration-500 ease-in-out ${isAIOpen ? 'w-1/2 opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10'}`}
+                  style={{ overflow: 'hidden' }}
+                />
+
+                <div className={`bg-zinc-950 rounded-2xl max-h-[85vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl animate-in fade-in zoom-in-95 transition-all duration-500 ease-in-out ${isAIOpen ? 'w-1/2' : 'w-full max-w-5xl'}`}>
+                  <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
+                    <h3 className="text-xl font-semibold text-white">
+                      {editingEvent ? 'Edit Event' : 'Create New Event'}
+                    </h3>
+                    <button 
+                      onClick={handleCloseForm}
+                      className="text-zinc-400 hover:text-white transition-colors p-1 hover:bg-zinc-800 rounded-lg"
+                    >
+                      <Plus className="rotate-45" size={24} />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-6">
+                    <EnhancedEventForm
+                      event={editingEvent}
+                      onSubmit={editingEvent ? handleUpdateEvent : handleCreateEvent}
+                      onClose={handleCloseForm}
+                      isLoading={formLoading}
+                      userEmail={session.user.email || ""}
+                      onAIStateChange={setIsAIOpen}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

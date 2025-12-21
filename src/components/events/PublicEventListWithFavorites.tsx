@@ -13,7 +13,7 @@ import {
 import { getPublicEvents } from "@/lib/events";
 import { supabase } from "@/lib/supabase";
 import type { Event } from "@/lib/supabase-types";
-import { EventCardSkeleton } from "@/components/ui/Skeleton";
+import { EventCardSkeleton, Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 interface PublicEventListWithFavoritesProps {
@@ -54,8 +54,9 @@ export function PublicEventListWithFavorites({
 
         if (error) throw error;
         setFavorites(new Set(data?.map((f) => f.event_id) || []));
-      } catch {
-        // Silently fail - favorites are non-critical
+      } catch (err) {
+        console.error('[PublicEventList] Error fetching favorites:', err);
+        // Favorites are non-critical - continue without them
       }
     };
 
@@ -125,7 +126,8 @@ export function PublicEventListWithFavorites({
     try {
       const data = await getPublicEvents();
       setEvents(data);
-    } catch {
+    } catch (err) {
+      console.error('[PublicEventList] Error fetching events:', err);
       setEvents([]);
     } finally {
       setLoading(false);
@@ -163,8 +165,9 @@ export function PublicEventListWithFavorites({
 
           setFavorites((prev) => new Set(prev).add(eventId));
         }
-      } catch {
-        // Silently fail - will show stale state but recover on refresh
+      } catch (err) {
+        console.error('[PublicEventList] Error toggling favorite:', err);
+        // Will show stale state but recover on refresh
       } finally {
         setSavingFavorite(null);
       }
@@ -186,8 +189,9 @@ export function PublicEventListWithFavorites({
             text: event.event_description || "Check out this event!",
             url,
           });
-        } catch {
-          // User cancelled
+        } catch (err) {
+          // User cancelled or share failed - not an error
+          console.log('[PublicEventList] Share cancelled or failed:', err);
         }
       } else {
         await navigator.clipboard.writeText(url);
@@ -243,11 +247,11 @@ export function PublicEventListWithFavorites({
     return (
       <div className="space-y-6">
         {/* Search Skeleton */}
-        <div className="space-y-4 animate-pulse">
-          <div className="w-full h-10 bg-zinc-800/60 rounded-lg" />
+        <div className="space-y-4">
+          <Skeleton className="w-full h-10 rounded-lg" />
           <div className="flex gap-4">
-            <div className="w-32 h-10 bg-zinc-800/60 rounded-lg" />
-            <div className="w-32 h-10 bg-zinc-800/60 rounded-lg" />
+            <Skeleton className="w-32 h-10 rounded-lg" />
+            <Skeleton className="w-32 h-10 rounded-lg" />
           </div>
         </div>
 
@@ -271,7 +275,7 @@ export function PublicEventListWithFavorites({
           placeholder="Search events by name or description..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-green-500 transition backdrop-blur-md"
+          className="w-full px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white placeholder-zinc-500 focus:outline-none focus:border-primary transition backdrop-blur-md"
         />
 
         {/* Filter Row */}
@@ -282,7 +286,7 @@ export function PublicEventListWithFavorites({
             onChange={(e) => {
               setLocationFilter(e.target.value);
             }}
-            className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm"
+            className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-primary transition text-sm"
           >
             <option value="all">All Locations</option>
             {uniqueLocations.map((location) => (
@@ -298,7 +302,7 @@ export function PublicEventListWithFavorites({
             onChange={(e) => {
               setDateFilter(e.target.value);
             }}
-            className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-green-500 transition text-sm"
+            className="px-4 py-2 bg-zinc-800/60 border border-zinc-700/50 rounded-lg text-white focus:outline-none focus:border-primary transition text-sm"
           >
             <option value="all">All Dates</option>
             <option value="upcoming">Upcoming</option>
@@ -330,7 +334,7 @@ export function PublicEventListWithFavorites({
               <Link
                 key={event.id}
                 href={`/event/${event.id}`}
-                className="public-event-card-fav group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-green-500/30 cursor-pointer block"
+                className="public-event-card-fav group relative bg-zinc-900 rounded-2xl overflow-hidden shadow-2xl hover:shadow-3xl transition-all duration-300 border border-zinc-700/50 hover:border-primary/30 cursor-pointer block"
                 style={{ aspectRatio: "3/4" }}
               >
                 {/* Background Image */}
@@ -360,7 +364,7 @@ export function PublicEventListWithFavorites({
                     <button
                       onClick={(e) => toggleFavorite(event.id, e)}
                       disabled={savingFavorite === event.id}
-                      className={`p-2 rounded-full backdrop-blur-sm transition focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                      className={`p-2 rounded-full backdrop-blur-sm transition focus:outline-none focus:ring-2 focus:ring-primary ${
                         favorites.has(event.id)
                           ? "bg-rose-500 text-white"
                           : "bg-black/50 text-white hover:bg-black/70"
@@ -374,7 +378,7 @@ export function PublicEventListWithFavorites({
                   )}
                   <button
                     onClick={(e) => handleShare(event, e)}
-                    className="p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition focus:outline-none focus:ring-2 focus:ring-green-500"
+                    className="p-2 rounded-full bg-black/50 backdrop-blur-sm text-white hover:bg-black/70 transition focus:outline-none focus:ring-2 focus:ring-primary"
                   >
                     <Share2 size={18} />
                   </button>
@@ -382,13 +386,13 @@ export function PublicEventListWithFavorites({
 
                 {/* Date Badge (Top Right) */}
                 <div className="absolute top-6 right-6">
-                  <div className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center shadow-lg">
-                    <div className="text-xs font-bold text-zinc-800 uppercase tracking-wide">
+                  <div className="bg-zinc-900/90 backdrop-blur-sm rounded-lg px-3 py-2 text-center shadow-lg border border-zinc-700/50">
+                    <div className="text-xs font-bold text-zinc-400 uppercase tracking-wide">
                       {new Date(event.start_date).toLocaleDateString("en", {
                         month: "short",
                       })}
                     </div>
-                    <div className="text-lg font-bold text-zinc-900 leading-none">
+                    <div className="text-lg font-bold text-white leading-none">
                       {new Date(event.start_date).toLocaleDateString("en", {
                         day: "numeric",
                       })}

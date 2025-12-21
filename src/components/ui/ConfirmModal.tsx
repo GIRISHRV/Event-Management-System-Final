@@ -70,7 +70,7 @@ export function ConfirmModal({
       >
         {/* Header */}
         <div className="p-6 flex items-start gap-4">
-          <div className={`p-3 rounded-full shrink-0 ${isDestructive ? 'bg-red-900/30 text-red-500' : 'bg-blue-900/30 text-blue-500'}`}>
+          <div className={`p-3 rounded-full shrink-0 ${isDestructive ? 'bg-destructive/30 text-destructive' : 'bg-primary/30 text-primary'}`}>
             <AlertTriangle size={24} />
           </div>
           <div className="flex-1">
@@ -104,8 +104,8 @@ export function ConfirmModal({
             disabled={isLoading}
             className={`px-4 py-2 text-sm font-medium text-white rounded-lg transition-all shadow-sm flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-zinc-900 ${
               isDestructive
-                ? "bg-red-600 hover:bg-red-700 focus:ring-red-500 disabled:bg-red-600/50"
-                : "bg-blue-600 hover:bg-blue-700 focus:ring-blue-500 disabled:bg-blue-600/50"
+                ? "bg-destructive hover:bg-destructive/90 focus:ring-destructive disabled:bg-destructive/50"
+                : "bg-primary hover:bg-primary/90 focus:ring-primary disabled:bg-primary/50"
             }`}
           >
             {isLoading ? (
