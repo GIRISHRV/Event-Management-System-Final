@@ -1,36 +1,58 @@
+"use client";
+
+import { cn } from "@/lib/cn";
 import { Loader2 } from "lucide-react";
-import Squares from "./Squares";
 
 interface LoadingScreenProps {
+  /** Message to display below the spinner */
   message?: string;
+  /** When false, the component renders nothing */
   isLoading?: boolean;
+  /** Full-screen overlay (fixed) vs inline block */
+  fullScreen?: boolean;
+  className?: string;
 }
 
-export function LoadingScreen({ message = "Loading...", isLoading = true }: LoadingScreenProps) {
-  // Simple approach: render based on isLoading prop directly with CSS transitions
+export function LoadingScreen({
+  message = "Loading…",
+  isLoading = true,
+  fullScreen = true,
+  className,
+}: LoadingScreenProps) {
   if (!isLoading) return null;
 
+  if (fullScreen) {
+    return (
+      <div
+        className={cn(
+          "fixed inset-0 flex flex-col items-center justify-center bg-[var(--color-background)]",
+          className
+        )}
+        style={{ zIndex: "var(--z-fixed)" }}
+      >
+        <Loader2 className="w-8 h-8 text-[var(--color-brand)] animate-spin" />
+        {message && (
+          <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
+            {message}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div 
-      className="fixed inset-0 z-100 bg-zinc-950 flex items-center justify-center overflow-hidden animate-fade-in"
+    <div
+      className={cn(
+        "flex flex-col items-center justify-center py-16",
+        className
+      )}
     >
-      <div className="absolute inset-0 z-0">
-        <Squares
-          direction="diagonal"
-          speed={0.8}
-          borderColor="#333"
-          squareSize={40}
-          hoverFillColor="#222"
-        />
-      </div>
-      
-      <div className="relative z-10 flex flex-col items-center gap-4 p-8 rounded-2xl bg-zinc-900/50 backdrop-blur-xl border border-zinc-800 shadow-2xl">
-        <div className="relative">
-          <div className="absolute inset-0 bg-primary/20 blur-xl rounded-full animate-pulse" />
-          <Loader2 className="w-10 h-10 text-primary animate-spin relative z-10" />
-        </div>
-        <p className="text-zinc-400 font-medium animate-pulse">{message}</p>
-      </div>
+      <Loader2 className="w-8 h-8 text-[var(--color-brand)] animate-spin" />
+      {message && (
+        <p className="mt-3 text-sm text-[var(--color-text-secondary)]">
+          {message}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,64 +1,53 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import type { ChatHistoryMessage } from "@/lib/supabase-types";
+import { z } from "zod";
+import { logger } from "@/lib/logger";
+import { MAX_CHAT_HISTORY } from "@/lib/constants";
+import { chatMessageSchema, type ChatMessage } from "@/schemas/chat.schema";
 
-// Create a Supabase client with the user's session token
-function createSupabaseClient(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "",
-    {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    }
-  );
+interface RawChatMessage extends Partial<ChatMessage> {
+  type?: string;
+  [key: string]: unknown;
 }
 
-// GET: Load chat history for an event
+function createSupabaseClient(token: string) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !key) {
+    throw new Error("Missing Supabase environment variables");
+  }
+
+  return createClient(url, key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+  });
+}
+
+function getToken(request: NextRequest): string | null {
+  const authHeader = request.headers.get("authorization") ?? "";
+  const token = authHeader.replace("Bearer ", "").trim();
+  return token || null;
+}
+
 export async function GET(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const eventId = searchParams.get("eventId");
-
+    const eventId = request.nextUrl.searchParams.get("eventId");
     if (!eventId) {
-      return NextResponse.json(
-        { error: "eventId is required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "eventId is required" }, { status: 400 });
     }
 
-    // Get session from Authorization header
-    const authHeader = request.headers.get("authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
-
+    const token = getToken(request);
     if (!token) {
-      console.log("[chat-history GET] No token provided, returning empty history");
-      return NextResponse.json({
-        success: true,
-        messages: [],
-        count: 0,
-      });
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     const supabase = createSupabaseClient(token);
-
-    // Verify user authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+
     if (authError || !user) {
-      console.log("[chat-history GET] Auth failed:", authError?.message);
-      return NextResponse.json({
-        success: true,
-        messages: [],
-        count: 0,
-      });
+      return NextResponse.json({ error: "Authentication failed" }, { status: 401 });
     }
 
-    console.log("[chat-history GET] Loading history for event:", eventId, "user:", user.id);
-
-    // Get chat history
     const { data, error } = await supabase
       .from("chat_history")
       .select("messages")
@@ -68,84 +57,56 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        // No rows found - this is OK, return empty
-        console.log("[chat-history GET] No history found (first time)");
-        return NextResponse.json({
-          success: true,
-          messages: [],
-          count: 0,
-        });
+        return NextResponse.json({ success: true, messages: [], count: 0 });
       }
-      console.error("[chat-history GET] Error loading history:", error.code, error.message);
-      return NextResponse.json(
-        { 
-          error: "Failed to load chat history",
-          details: error.message,
-          code: error.code
-        },
-        { status: 500 }
-      );
+      logger.error("[chat-history GET] DB error:", error.code, error.message);
+      return NextResponse.json({ error: "Failed to load chat history", details: error.message }, { status: 500 });
     }
 
-    const messages: ChatHistoryMessage[] = data?.messages || [];
-    const returnMessages = messages.slice(-20); // Keep last 20
+    // Map legacy 'type: bot' payloads to 'role: assistant' algorithmically if they exist in DB history
+    const rawMessages = data?.messages || [];
+    const messages: ChatMessage[] = (rawMessages as RawChatMessage[])
+      .map((m) => ({
+        ...m,
+        role: m.role || (m.type === "bot" ? "assistant" : m.type === "user" ? "user" : "error")
+      } as ChatMessage))
+      .slice(-MAX_CHAT_HISTORY);
 
-    console.log("[chat-history GET] Loaded", returnMessages.length, "messages");
-
-    return NextResponse.json({
-      success: true,
-      messages: returnMessages,
-      count: returnMessages.length,
-    });
-  } catch (error) {
-    console.error("[chat-history GET] Unexpected error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, messages, count: messages.length });
+  } catch (error: unknown) {
+    logger.error("[chat-history GET] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// POST: Save chat message to history
+const SaveMessageSchema = z.object({
+  eventId: z.string().uuid(),
+  message: chatMessageSchema,
+});
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { eventId, message } = body;
-
-    if (!eventId || !message) {
-      return NextResponse.json(
-        { error: "eventId and message are required" },
-        { status: 400 }
-      );
+    const parsed = SaveMessageSchema.safeParse(body);
+    
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid schema payload bounded", details: parsed.error.flatten() }, { status: 400 });
     }
 
-    // Get session from Authorization header
-    const authHeader = request.headers.get("authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
-
+    const { eventId, message } = parsed.data;
+    const token = getToken(request);
+    
     if (!token) {
-      console.log("[chat-history POST] No token provided, skipping save");
-      return NextResponse.json({
-        success: true,
-        message: "Message not saved (not authenticated)",
-      });
+      return NextResponse.json({ success: true, message: "Node saved locally (Unauthenticated)" });
     }
 
     const supabase = createSupabaseClient(token);
-
-    // Verify user authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
+
     if (authError || !user) {
-      console.log("[chat-history POST] Auth failed:", authError?.message);
-      return NextResponse.json({
-        success: true,
-        message: "Message not saved (auth failed)",
-      });
+      return NextResponse.json({ success: true, message: "Node saved locally (Auth Failure)" });
     }
 
-    console.log("[chat-history POST] Saving message for event:", eventId, "user:", user.id);
-
-    // Get existing chat history
     const { data: existingData } = await supabase
       .from("chat_history")
       .select("id, messages")
@@ -153,156 +114,72 @@ export async function POST(request: NextRequest) {
       .eq("event_id", eventId)
       .single();
 
-    let messages: ChatHistoryMessage[] = existingData?.messages || [];
-    const messageWithTimestamp = {
-      ...message,
-      timestamp: new Date().toISOString(),
-    };
+    let messages = existingData?.messages ?? [];
+    
+    // Map existing legacy history types to pure roles during read/write cycles
+    messages = (messages as RawChatMessage[]).map((m) => ({
+      ...m,
+      role: m.role || (m.type === "bot" ? "assistant" : m.type === "user" ? "user" : "error")
+    } as ChatMessage));
+    
+    messages.push(message);
 
-    messages.push(messageWithTimestamp);
-
-    // Keep only last 20 messages
-    if (messages.length > 20) {
-      messages = messages.slice(-20);
-      console.log("[chat-history POST] Pruned to 20 messages");
+    if (messages.length > MAX_CHAT_HISTORY) {
+      messages = messages.slice(-MAX_CHAT_HISTORY);
     }
+
+    const now = new Date().toISOString();
 
     if (existingData?.id) {
-      // Update existing record
-      console.log("[chat-history POST] Updating existing record");
       const { error: updateError } = await supabase
         .from("chat_history")
-        .update({
-          messages,
-          updated_at: new Date().toISOString(),
-        })
+        .update({ messages, updated_at: now })
         .eq("id", existingData.id);
 
-      if (updateError) {
-        console.error("[chat-history POST] Update error:", updateError.code, updateError.message);
-        return NextResponse.json(
-          { 
-            error: "Failed to save message",
-            details: updateError.message,
-            code: updateError.code
-          },
-          { status: 500 }
-        );
-      }
+      if (updateError) throw new Error(updateError.message);
     } else {
-      // Create new record
-      console.log("[chat-history POST] Creating new record");
-      const { error: insertError } = await supabase
-        .from("chat_history")
-        .insert({
-          user_id: user.id,
-          event_id: eventId,
-          messages,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+      const { error: insertError } = await supabase.from("chat_history").insert({
+        user_id: user.id,
+        event_id: eventId,
+        messages,
+        created_at: now,
+        updated_at: now,
+      });
 
-      if (insertError) {
-        console.error("[chat-history POST] Insert error:", insertError.code, insertError.message);
-        return NextResponse.json(
-          { 
-            error: "Failed to save message",
-            details: insertError.message,
-            code: insertError.code
-          },
-          { status: 500 }
-        );
-      }
+      if (insertError) throw new Error(insertError.message);
     }
 
-    console.log("[chat-history POST] Message saved, total messages:", messages.length);
-
-    return NextResponse.json({
-      success: true,
-      message: "Message saved",
-      totalMessages: messages.length,
-    });
-  } catch (error) {
-    console.error("[chat-history POST] Unexpected error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, message: "Messages saved to database", totalMessages: messages.length });
+  } catch (error: unknown) {
+    logger.error("[chat-history POST] Unexpected error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-// DELETE: Clear chat history for an event
 export async function DELETE(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const eventId = searchParams.get("eventId");
+    const eventId = request.nextUrl.searchParams.get("eventId");
+    if (!eventId) return NextResponse.json({ error: "eventId constraint required" }, { status: 400 });
 
-    if (!eventId) {
-      return NextResponse.json(
-        { error: "eventId is required" },
-        { status: 400 }
-      );
-    }
-
-    // Get session from Authorization header
-    const authHeader = request.headers.get("authorization") || "";
-    const token = authHeader.replace("Bearer ", "");
-
-    if (!token) {
-      console.log("[chat-history DELETE] No token provided");
-      return NextResponse.json({
-        success: true,
-        message: "History not cleared (not authenticated)",
-      });
-    }
+    const token = getToken(request);
+    if (!token) return NextResponse.json({ success: true, message: "Taint not cleared (unauth)" });
 
     const supabase = createSupabaseClient(token);
-
-    // Verify user authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      console.log("[chat-history DELETE] Auth failed:", authError?.message);
-      return NextResponse.json({
-        success: true,
-        message: "History not cleared (auth failed)",
-      });
-    }
 
-    console.log("[chat-history DELETE] Clearing history for event:", eventId);
+    if (authError || !user) return NextResponse.json({ success: true, message: "Taint not cleared (auth fail)" });
 
-    // Reset messages to empty array
     const { error } = await supabase
       .from("chat_history")
-      .update({
-        messages: [],
-        updated_at: new Date().toISOString(),
-      })
+      .update({ messages: [], updated_at: new Date().toISOString() })
       .eq("user_id", user.id)
       .eq("event_id", eventId);
 
-    if (error) {
-      console.error("[chat-history DELETE] Error clearing history:", error.code, error.message);
-      return NextResponse.json(
-        { 
-          error: "Failed to clear history",
-          details: error.message,
-          code: error.code
-        },
-        { status: 500 }
-      );
-    }
+    if (error) throw new Error(error.message);
 
-    console.log("[chat-history DELETE] History cleared successfully");
-
-    return NextResponse.json({
-      success: true,
-      message: "Chat history cleared",
-    });
-  } catch (error) {
-    console.error("[chat-history DELETE] Unexpected error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: true, message: "Chat mathematical history decimated" });
+  } catch (error: unknown) {
+    logger.error("[chat-history DELETE] Extirpate error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

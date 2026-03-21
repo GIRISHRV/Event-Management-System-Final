@@ -28,7 +28,7 @@ export type Event = {
 
   // Basic event information (REQUIRED)
   event_name: string;
-  event_description?: string;
+  event_description?: string | null;
   start_date: string;
   start_time: string;
   end_date: string;
@@ -36,27 +36,30 @@ export type Event = {
   timezone?: string;
 
   // Event media and visibility
-  event_banner_url?: string;
+  event_banner_url?: string | null;
   visibility_type: 'public' | 'private' | 'whitelist';
   event_status: 'upcoming' | 'ongoing' | 'completed' | 'cancelled';
 
   // Event capacity and RSVP management
-  max_attendees?: number;
+  max_attendees?: number | null;
+
+  // Budget
+  budget?: number | null;
 
   // Venue and location details
-  venue_name?: string;
-  venue_address?: string;
-  venue_city?: string;
-  venue_landmark?: string;
-  venue_type?: 'indoor' | 'outdoor' | 'hybrid';
-  google_maps_url?: string;
-  venue_latitude?: number;
-  venue_longitude?: number;
+  venue_name?: string | null;
+  venue_address?: string | null;
+  venue_city?: string | null;
+  venue_landmark?: string | null;
+  venue_type?: 'indoor' | 'outdoor' | 'hybrid' | null;
+  google_maps_url?: string | null;
+  venue_latitude?: number | null;
+  venue_longitude?: number | null;
 
   // Organizer information
-  organizer_name?: string;
-  organizer_contact?: string;
-  organizer_email?: string;
+  organizer_name?: string | null;
+  organizer_contact?: string | null;
+  organizer_email?: string | null;
 
   // Complex data stored as JSON arrays
   schedules?: EventScheduleData[];
@@ -83,9 +86,11 @@ export interface EventScheduleData {
 
 export interface EventPerformerData {
   name: string;
+  id?: string;
+  role?: string;
   bio?: string;
   image_url?: string;
-  performer_type: 'artist' | 'speaker' | 'chef' | 'performer' | 'other';
+  performer_type?: 'artist' | 'speaker' | 'chef' | 'performer' | 'other';
   social_links?: Record<string, string>;
 }
 
@@ -107,12 +112,8 @@ export type CreateEventInput = Omit<
   "id" | "created_at" | "updated_at"
 >;
 
-// Legacy types for backward compatibility (now stored as JSON within events)
-export type EventSchedule = EventScheduleData;
-export type EventPerformer = EventPerformerData;
-export type EventFAQ = EventFAQData;
+// Legacy type aliases removed — use EventScheduleData, EventPerformerData, EventFAQData, Event directly.
 
-export type EventWithDetails = Event;
 
 // Location-based search types
 export type EventLocation = {
@@ -171,7 +172,46 @@ export type ServiceRequest = {
   vendor_id: string;
   status: 'pending' | 'accepted' | 'rejected' | 'completed' | 'cancelled';
   message?: string;
+  /** Set when one party initiates a cancellation. Cleared when accepted or declined. */
+  cancellation_requested_by?: 'customer' | 'vendor' | null;
   created_at: string;
   updated_at?: string;
 };
 
+// Shared join type used by DashboardRequestsList (customer & vendor views)
+export type ExtendedServiceRequest = ServiceRequest & {
+  events: {
+    event_name: string;
+    start_date: string;
+  };
+  vendor_services: {
+    service_name: string;
+    base_price: number;
+  };
+  profiles: {
+    full_name: string;
+    email: string;
+  };
+};
+
+export type EventVendor = {
+  id: string;
+  event_id: string;
+  vendor_id: string;
+  service_id: string;
+  request_id: string;
+  hired_at: string;
+};
+
+export type ExtendedEventVendor = EventVendor & {
+  profiles: {
+    full_name: string;
+    email: string;
+    avatar_url?: string;
+  };
+  vendor_services: {
+    service_name: string;
+    base_price: number;
+    category: string;
+  };
+};

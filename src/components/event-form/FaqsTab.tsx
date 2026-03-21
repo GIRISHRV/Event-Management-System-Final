@@ -1,61 +1,50 @@
 import React, { useState } from 'react';
 import { Plus, Trash2, HelpCircle, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
-import { UseFormRegister, Control, useFieldArray, FieldErrors, useWatch } from 'react-hook-form';
-import { EventFormSchema } from '@/lib/schemas';
+import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form';
+import { type EventFormData } from '@/schemas/event.schema';
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
 
 interface FaqsTabProps {
-  register: UseFormRegister<EventFormSchema>;
-  control: Control<EventFormSchema>;
-  errors: FieldErrors<EventFormSchema>;
+  form: UseFormReturn<EventFormData>;
 }
 
-const FaqItem = ({ 
-  index, 
-  control,
-  register, 
-  remove, 
-  errors 
+const FaqItem = ({
+  index,
+  form,
+  remove,
 }: {
   index: number;
-  control: Control<EventFormSchema>;
-  register: UseFormRegister<EventFormSchema>;
+  form: UseFormReturn<EventFormData>;
   remove: (index: number) => void;
-  errors: FieldErrors<EventFormSchema>;
 }) => {
+  const { control, register, formState: { errors } } = form;
   const [isOpen, setIsOpen] = useState(false);
-  
+
   const question = useWatch({
     control,
     name: `faqs.${index}.question`,
     defaultValue: ""
   });
 
-  const inputClasses = `
-    w-full px-3 py-2.5 bg-zinc-900/50 border border-zinc-800 rounded-xl text-white placeholder-zinc-500 
-    focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 
-    transition-all duration-200
-  `;
-  
-  const labelClasses = "block text-sm font-medium text-zinc-400 mb-2 ml-1";
-
   return (
-    <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl overflow-hidden group hover:border-zinc-700 transition-colors">
-      <div 
-        className="flex items-center justify-between p-4 cursor-pointer bg-zinc-900/50 hover:bg-zinc-800/50 transition-colors"
+    <div className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)] overflow-hidden group hover:border-[var(--color-border-hover)] transition-colors">
+      <div
+        className="flex items-center justify-between p-4 cursor-pointer bg-[var(--color-surface-hover)] transition-colors"
         onClick={() => setIsOpen(!isOpen)}
       >
         <div className="flex items-center gap-3">
-          <span className="px-2 py-1 bg-zinc-800 rounded text-xs font-medium text-zinc-400">
+          <span className="px-2 py-1 bg-[var(--color-background)] rounded text-xs font-medium text-[var(--color-text-secondary)] truncate max-w-[200px] md:max-w-md">
             {question || `FAQ ${index + 1}`}
           </span>
           <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-            <label htmlFor={`faqs.${index}.display_order`} className="text-xs text-zinc-500">Order:</label>
+            <label htmlFor={`faqs.${index}.display_order`} className="text-xs text-[var(--color-text-tertiary)]">Order:</label>
             <input
               id={`faqs.${index}.display_order`}
               type="number"
               min="0"
               {...register(`faqs.${index}.display_order`, { valueAsNumber: true })}
-              className="w-16 px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white text-xs focus:outline-none focus:border-emerald-500"
+              className="w-16 px-2 py-1 bg-[var(--color-input)] border border-[var(--color-input-border)] rounded text-[var(--color-text-primary)] text-xs focus:outline-none focus:border-[var(--color-brand)]"
             />
           </div>
         </div>
@@ -63,57 +52,39 @@ const FaqItem = ({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); remove(index); }}
-            className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+            className="p-2 text-[var(--color-text-tertiary)] hover:text-[var(--color-danger)] hover:bg-[var(--color-danger-muted)] rounded-[var(--radius-md)] transition-colors"
           >
             <Trash2 size={16} />
           </button>
-          {isOpen ? <ChevronUp size={18} className="text-zinc-500" /> : <ChevronDown size={18} className="text-zinc-500" />}
+          {isOpen ? <ChevronUp size={18} className="text-[var(--color-text-tertiary)]" /> : <ChevronDown size={18} className="text-[var(--color-text-tertiary)]" />}
         </div>
       </div>
-      
+
       {isOpen && (
-        <div className="p-5 border-t border-zinc-800 space-y-4">
-          <div>
-            <label htmlFor={`faqs.${index}.question`} className={labelClasses}>
-              Question
-            </label>
-            <input
-              id={`faqs.${index}.question`}
-              type="text"
-              {...register(`faqs.${index}.question`)}
-              placeholder="e.g. Is parking available?"
-              className={inputClasses}
-            />
-            {errors.faqs?.[index]?.question && (
-              <p className="mt-2 text-xs text-red-400 ml-1">{errors.faqs[index]?.question?.message}</p>
-            )}
-          </div>
-          <div>
-            <label htmlFor={`faqs.${index}.answer`} className={labelClasses}>
-              Answer
-            </label>
-            <textarea
-              id={`faqs.${index}.answer`}
-              {...register(`faqs.${index}.answer`)}
-              placeholder="Provide a clear answer..."
-              rows={3}
-              className={`${inputClasses} resize-none`}
-            />
-            {errors.faqs?.[index]?.answer && (
-              <p className="mt-2 text-xs text-red-400 ml-1">{errors.faqs[index]?.answer?.message}</p>
-            )}
-          </div>
+        <div className="p-5 border-t border-[var(--color-border)] space-y-4">
+           <Input
+            label="Question"
+            type="text"
+            placeholder="e.g. Is parking available?"
+            {...register(`faqs.${index}.question`)}
+            error={errors.faqs?.[index]?.question?.message as string}
+          />
+          <Textarea
+            label="Answer"
+            placeholder="Provide a clear answer..."
+            rows={3}
+            {...register(`faqs.${index}.answer`)}
+            error={errors.faqs?.[index]?.answer?.message as string}
+          />
         </div>
       )}
     </div>
   );
 };
 
-export function FaqsTab({
-  register,
-  control,
-  errors,
-}: FaqsTabProps) {
+export function FaqsTab({ form }: FaqsTabProps) {
+  const { control } = form;
+  
   const { fields, append, remove } = useFieldArray({
     control,
     name: "faqs"
@@ -123,16 +94,16 @@ export function FaqsTab({
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <HelpCircle className="text-emerald-400" size={20} />
+          <h3 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+            <HelpCircle className="text-[var(--color-brand)]" size={20} />
             Frequently Asked Questions
           </h3>
-          <p className="text-sm text-zinc-400 mt-1">Help attendees with common questions</p>
+          <p className="text-sm text-[var(--color-text-tertiary)] mt-1">Help attendees with common questions</p>
         </div>
         <button
           type="button"
           onClick={() => append({ question: "", answer: "", display_order: fields.length })}
-          className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-lg transition-all hover:scale-105"
+          className="flex items-center gap-2 px-3 py-1.5 bg-[var(--color-surface)] hover:bg-[var(--color-surface-hover)] border border-[var(--color-border)] text-sm text-[var(--color-text-primary)] rounded-[var(--radius-md)] transition-colors"
         >
           <Plus size={16} />
           Add FAQ
@@ -140,13 +111,13 @@ export function FaqsTab({
       </div>
 
       {fields.length === 0 ? (
-        <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/20">
-          <MessageCircle className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-          <p className="text-zinc-500">No FAQs added yet</p>
+        <div className="text-center py-10 border-2 border-dashed border-[var(--color-border)] rounded-[var(--radius-lg)] bg-[var(--color-surface)]">
+          <MessageCircle className="w-10 h-10 text-[var(--color-text-tertiary)] mx-auto mb-3" />
+          <p className="text-[var(--color-text-secondary)] text-sm">No FAQs added yet</p>
           <button
             type="button"
             onClick={() => append({ question: "", answer: "", display_order: fields.length })}
-            className="text-emerald-400 hover:text-emerald-300 text-sm mt-2 font-medium"
+            className="text-sm text-[var(--color-brand)] hover:underline mt-2 font-medium"
           >
             Add your first question
           </button>
@@ -157,10 +128,8 @@ export function FaqsTab({
             <FaqItem
               key={field.id}
               index={index}
-              control={control}
-              register={register}
+              form={form}
               remove={remove}
-              errors={errors}
             />
           ))}
         </div>

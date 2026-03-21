@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
@@ -17,29 +17,29 @@ export default function GlobalError({ error, reset }: GlobalErrorProps) {
 
   return (
     <html lang="en" className="dark">
-      <body className="bg-zinc-950 text-white">
+      <body className="bg-[#1a1a1a] text-white">
         <div className="min-h-screen flex items-center justify-center p-6">
           <div className="max-w-md w-full text-center">
             <div className="mb-6">
-              <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <AlertTriangle className="w-10 h-10 text-red-500" />
+              <div className="w-16 h-16 bg-red-500/20 rounded-md flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8 text-red-500" />
               </div>
-              <h1 className="text-3xl font-bold text-white mb-2">Critical Error</h1>
-              <p className="text-zinc-400">
-                Something went seriously wrong. Please refresh the page.
+              <h1 className="text-2xl font-semibold text-white mb-2">Something Went Wrong</h1>
+              <p className="text-gray-400">
+                We encountered an unexpected error. Please refresh the page to try again.
               </p>
             </div>
 
             <button
               onClick={reset}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors text-lg"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-[#2563eb] hover:bg-blue-600 text-white font-medium rounded-md transition-colors"
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className="w-4 h-4" />
               Refresh Page
             </button>
 
             {error.digest && (
-              <p className="mt-6 text-xs text-zinc-600">
+              <p className="mt-4 text-xs text-gray-600">
                 Error ID: {error.digest}
               </p>
             )}

@@ -1,17 +1,16 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/services/supabase/client";
 import type { Session } from "@supabase/supabase-js";
-import type { Profile } from "@/lib/supabase-types";
-
-// Use the Profile type from supabase-types, but ensure role is compatible
-export type UserProfile = Profile;
+import { userProfileSchema, type UserProfile } from "@/schemas/profile.schema";
+import { logger } from "@/lib/logger";
 
 interface AuthContextType {
   session: Session | null;
   userProfile: UserProfile | null;
   loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -23,51 +22,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Helper to fetch profile
+    let isMounted = true;
+
+    // Strict fetch and Zod validation of user profile
     const fetchProfile = async (userId: string) => {
       try {
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from("profiles")
           .select("*")
           .eq("id", userId)
-          .single();
-        
-        if (profile) {
-          setUserProfile(profile as UserProfile);
+          .maybeSingle(); // Use maybeSingle to avoid 406 on missing row
+
+        if (error) {
+          logger.error("[AuthContext] Profile fetch error:", error.message || error);
+          return;
         }
-      } catch {
-        // Profile fetch failed silently - user can still use the app
+
+        if (profile && isMounted) {
+          // Validate using our user profile schema
+          const validatedProfile = userProfileSchema.parse(profile);
+          setUserProfile(validatedProfile);
+        } else if (isMounted) {
+          logger.info("[AuthContext] Profile not found yet for user:", userId);
+          // Optional: Retry logic could go here if we expect a trigger delay
+        }
+      } catch (err) {
+        logger.error("[AuthContext] Profile processing failed:", err instanceof Error ? err.message : err);
       }
     };
 
-    // Get initial session from Supabase
     const initAuth = async () => {
       try {
-        // First check if there's a stored session in localStorage
-        const { data: { session: storedSession } } = await supabase.auth.getSession();
+        const { data: { session: storedSession }, error } = await supabase.auth.getSession();
         
-        if (storedSession) {
+        if (error) throw error;
+
+        if (storedSession && isMounted) {
           setSession(storedSession);
-          // Fetch profile in background (don't wait)
           void fetchProfile(storedSession.user.id);
         }
-      } catch {
-        // Auth init failed silently - user will be redirected to login
+      } catch (err) {
+        logger.error("[AuthContext] Failed to initialize session", err);
       } finally {
-        // Always set loading to false immediately
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    initAuth();
+    void initAuth();
 
-    // Listen for auth state changes
+    // Listen to Supabase edge auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
+      (event, newSession) => {
+        if (!isMounted) return;
         
+        setSession(newSession);
+
         if (newSession?.user) {
-          // Fetch updated profile in background
           void fetchProfile(newSession.user.id);
         } else {
           setUserProfile(null);
@@ -76,18 +86,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     return () => {
+      isMounted = false;
       subscription?.unsubscribe();
     };
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setSession(null);
-    setUserProfile(null);
+    try {
+      await supabase.auth.signOut();
+    } catch (err) {
+      logger.error("[AuthContext] Sign out error", err);
+    } finally {
+      setSession(null);
+      setUserProfile(null);
+      // Force a full page reload/redirect to clear all states and move away from protected routes
+      window.location.href = "/";
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
   };
 
   return (
-    <AuthContext.Provider value={{ session, userProfile, loading, signOut }}>
+    <AuthContext.Provider value={{ session, userProfile, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
@@ -96,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error("useAuth must be used within AuthProvider");
+    throw new Error("useAuth must be used within an AuthProvider root boundary.");
   }
   return context;
 }

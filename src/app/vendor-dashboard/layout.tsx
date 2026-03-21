@@ -1,4 +1,7 @@
 import React from 'react';
+import { DashboardShell } from '@/components/layout/DashboardShell';
+
+export const dynamic = 'force-dynamic';
 
 export default function VendorLayout({
   children,
@@ -6,8 +9,8 @@ export default function VendorLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="theme-vendor min-h-screen bg-background text-foreground">
+    <DashboardShell>
       {children}
-    </div>
+    </DashboardShell>
   );
 }

@@ -1,169 +1,149 @@
 "use client";
 
-import { useEffect, useRef, useState, memo } from "react";
+import { useEffect, useRef, memo } from "react";
+import dynamic from "next/dynamic";
 import type { Event } from "@/lib/supabase-types";
-import type { Map, Layer } from "leaflet";
+import { logger } from "@/lib/logger";
 
 interface EventMapProps {
   event: Event;
   nearbyEvents?: Event[];
 }
 
-export const EventMap = memo(function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<Map | null>(null);
-  const [isLoaded, setIsLoaded] = useState(false);
+import type L from "leaflet";
 
-  // Check if we have valid coordinates
-  const hasCoordinates = event.venue_latitude && event.venue_longitude;
+const EventMapInner = memo(function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const hasCoordinates = !!(event.venue_latitude && event.venue_longitude);
 
   useEffect(() => {
-    if (!hasCoordinates || !mapContainer.current || isLoaded) return;
+    function handleResize() {
+      if (mapRef.current) {
+        mapRef.current.invalidateSize({ animate: false });
+      }
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("resize", handleResize);
+      return () => window.removeEventListener("resize", handleResize);
+    }
+  }, []);
 
-    // Dynamically import Leaflet only on client-side
+  useEffect(() => {
+    if (typeof window === 'undefined' || !hasCoordinates || !containerRef.current) return;
+
+    let mounted = true;
+
     const initMap = async () => {
       try {
         const L = (await import("leaflet")).default;
         await import("leaflet/dist/leaflet.css");
+        if (!mounted) return;
 
-        // Fix for Leaflet default icons in Next.js
+        // Fix default icons globally
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
           iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
           shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
         });
 
-        // Initialize map
-        if (!mapRef.current && mapContainer.current) {
-          mapRef.current = L.map(mapContainer.current).setView(
-            [event.venue_latitude!, event.venue_longitude!],
-            13
-          );
-
-          // Add OpenStreetMap tiles
+        if (!mapRef.current) {
+          const map = L.map(containerRef.current!).setView([event.venue_latitude!, event.venue_longitude!], 14);
           L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution:
-              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             maxZoom: 19,
-          }).addTo(mapRef.current);
+          }).addTo(map);
+          mapRef.current = map;
         }
 
-        // Clear existing markers
-        mapRef.current?.eachLayer((layer: Layer) => {
-          if ('_icon' in layer) { // Marker has _icon property
-            mapRef.current?.removeLayer(layer);
+        const map = mapRef.current;
+
+        // Force Leaflet to recalculate container size.
+        // Use mapRef.current (not the local `map` var) so the callback
+        // reads the live ref at execution time, not a stale closure capture.
+        setTimeout(() => {
+          if (mounted && mapRef.current) {
+            mapRef.current.invalidateSize({ animate: false });
           }
+        }, 100);
+
+        // Clear existing markers
+        map.eachLayer((layer: L.Layer) => {
+          if ('_icon' in layer) map.removeLayer(layer);
         });
 
-        // Add main event marker
-        const mainIcon = L.icon({
-          iconUrl:
-            "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png",
-          shadowUrl:
-            "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+        const blueIcon = L.icon({
+          iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+          shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
           iconSize: [25, 41],
           iconAnchor: [12, 41],
           popupAnchor: [1, -34],
           shadowSize: [41, 41],
         });
 
-        const mainMarker = L.marker([event.venue_latitude!, event.venue_longitude!], {
-          icon: mainIcon,
-        })
-          .bindPopup(
-            `
-            <div class="p-2">
-              <h3 class="font-bold text-sm">${event.event_name}</h3>
-              <p class="text-xs text-gray-600">${event.venue_name || "No venue"}</p>
-              <a href="https://www.google.com/maps/search/${event.venue_latitude},${event.venue_longitude}" target="_blank" class="text-xs text-primary hover:underline mt-2 inline-block">Get Directions →</a>
+        const mainMarker = L.marker([event.venue_latitude!, event.venue_longitude!], { icon: blueIcon })
+          .bindPopup(`
+            <div style="padding:8px;min-width:160px">
+              <h3 style="font-weight:700;font-size:13px;margin-bottom:4px">${event.event_name}</h3>
+              <p style="font-size:11px;color:#71717a">${event.venue_name || event.venue_city || "Venue"}</p>
             </div>
-          `
-          )
-          .addTo(mapRef.current);
+          `);
 
-        // Add nearby events markers
+        mainMarker.addTo(map);
+
+        const group = new L.FeatureGroup([mainMarker]);
+
         nearbyEvents.forEach((nearbyEvent) => {
           if (nearbyEvent.venue_latitude && nearbyEvent.venue_longitude) {
-            const nearbyIcon = L.icon({
-              iconUrl:
-                "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
-              shadowUrl:
-                "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-              iconSize: [25, 41],
-              iconAnchor: [12, 41],
-              popupAnchor: [1, -34],
-              shadowSize: [41, 41],
-            });
-
-            L.marker([nearbyEvent.venue_latitude, nearbyEvent.venue_longitude], {
-              icon: nearbyIcon,
-            })
-              .bindPopup(
-                `
-                <div class="p-2">
-                  <h3 class="font-bold text-sm">${nearbyEvent.event_name}</h3>
-                  <p class="text-xs text-gray-600">${nearbyEvent.venue_name || "No venue"}</p>
-                  <a href="/event/${nearbyEvent.id}" class="text-xs text-primary hover:underline mt-2 inline-block">View Event →</a>
+            const marker = L.marker([nearbyEvent.venue_latitude, nearbyEvent.venue_longitude], { icon: blueIcon })
+              .bindPopup(`
+                <div style="padding:8px;min-width:160px">
+                  <h3 style="font-weight:700;font-size:13px;margin-bottom:4px">${nearbyEvent.event_name}</h3>
+                  <a href="/event/${nearbyEvent.id}" style="font-size:11px;color:#3b82f6">View Event →</a>
                 </div>
-              `
-              )
-              .addTo(mapRef.current);
+              `);
+            marker.addTo(map);
+            group.addLayer(marker);
           }
         });
 
-        // Auto-fit bounds if there are multiple markers
-        if (nearbyEvents.length > 0 && mapRef.current) {
-          const group = new L.FeatureGroup([mainMarker]);
-          nearbyEvents.forEach((nearbyEvent) => {
-            if (nearbyEvent.venue_latitude && nearbyEvent.venue_longitude) {
-              group.addLayer(
-                L.marker([nearbyEvent.venue_latitude, nearbyEvent.venue_longitude])
-              );
-            }
-          });
-          mapRef.current.fitBounds(group.getBounds(), { padding: [50, 50] });
+        if (nearbyEvents.length > 0) {
+          map.fitBounds(group.getBounds(), { padding: [50, 50] });
+        } else {
+          map.setView([event.venue_latitude!, event.venue_longitude!], 14);
         }
 
-        setIsLoaded(true);
-      } catch (err) {
-        console.error('[EventMap] Error initializing map:', err);
-        // Map failed to load - will show fallback UI
+      } catch (error) {
+        logger.error("[EventMap] Failed to initialize map:", error);
       }
     };
 
     initMap();
-  }, [event, nearbyEvents, hasCoordinates, isLoaded]);
+
+    // Single central cleanup handler
+    return () => {
+      mounted = false;
+      if (mapRef.current) {
+        mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [event.venue_latitude, event.venue_longitude, event.event_name, event.venue_name, event.venue_city, nearbyEvents, hasCoordinates]);
 
   if (!hasCoordinates) {
     return (
-      <div className="bg-zinc-900/50 rounded-xl p-8 border border-zinc-800/50 backdrop-blur text-center">
-        <p className="text-gray-400">
-          📍 Location coordinates not available for this event
-        </p>
+      <div className="bg-[#2b2b2b] rounded-xl p-6 border border-zinc-800/50 text-center h-full flex items-center justify-center">
+        <p className="text-zinc-400">📍 No location set for this event</p>
       </div>
     );
   }
 
   return (
-    <div className="mb-12">
-      <h2 className="text-2xl font-bold text-white mb-6">Event Location</h2>
-      <div
-        ref={mapContainer}
-        className="w-full h-96 rounded-xl border border-zinc-800/50 shadow-lg overflow-hidden"
-        style={{ zIndex: 1 }}
-      />
-      <div className="mt-4 flex items-center gap-3 text-sm text-gray-400">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span>This Event</span>
-        </div>
-        {nearbyEvents.length > 0 && (
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-blue-500" />
-            <span>Nearby Events</span>
-          </div>
-        )}
-      </div>
-    </div>
+    <div
+      ref={containerRef}
+      className="w-full rounded-xl z-0"
+      style={{ height: "50vh", minHeight: "300px" }}
+    />
   );
 });
+
+export const EventMap = dynamic(() => Promise.resolve(EventMapInner), { ssr: false });

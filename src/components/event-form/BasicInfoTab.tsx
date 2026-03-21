@@ -1,104 +1,111 @@
-import React from 'react';
-import Image from 'next/image';
-import { Upload, Globe, Activity, Calendar, Clock, User, Mail, Users } from 'lucide-react';
-import { UseFormRegister, FieldErrors, UseFormWatch } from 'react-hook-form';
-import { EventFormSchema } from '@/lib/schemas';
-import { VISIBILITY_TYPES, EVENT_STATUS } from '@/lib/constants';
+import React, { useRef, useState } from "react";
+import Image from "next/image";
+import { Upload, Globe, Activity, Users, IndianRupee, Loader2 } from "lucide-react";
+import { type UseFormReturn } from "react-hook-form";
+import { type EventFormData } from "@/schemas/event.schema";
+import { VISIBILITY_TYPES, EVENT_STATUS } from "@/lib/constants";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+import { storageService } from "@/services/supabase/storage";
+import { useToast } from "@/hooks/useToast";
+import { getErrorMessage } from "@/lib/errors";
 
 interface BasicInfoTabProps {
-  register: UseFormRegister<EventFormSchema>;
-  errors: FieldErrors<EventFormSchema>;
-  watch: UseFormWatch<EventFormSchema>;
-  isUploading: boolean;
-  onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  form: UseFormReturn<EventFormData>;
+  eventId?: string;
 }
 
-export function BasicInfoTab({
-  register,
-  errors,
-  watch,
-  isUploading,
-  onImageUpload,
-  fileInputRef,
-}: BasicInfoTabProps) {
-  const eventBannerUrl = watch('eventBannerUrl');
+export function BasicInfoTab({ form, eventId }: BasicInfoTabProps) {
+  const { register, watch, setValue, formState: { errors } } = form;
+  const eventBannerUrl = watch("eventBannerUrl");
+  const { error: toastError, success: toastSuccess } = useToast();
 
-  const inputClasses = `
-    w-full px-3 py-2.5 bg-zinc-900/50 border rounded-xl text-white placeholder-zinc-500 
-    focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 
-    transition-all duration-200
-  `;
-  
-  const labelClasses = "block text-sm font-medium text-zinc-400 mb-2 ml-1";
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const url = await storageService.uploadFile('events', file, {
+        folder: eventId || 'new-event/banners'
+      });
+      setValue('eventBannerUrl', url, { shouldValidate: true, shouldDirty: true });
+      toastSuccess("Banner uploaded");
+    } catch (error: unknown) {
+      toastError(getErrorMessage(error, "Failed to upload banner"));
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <div className="space-y-6">
-      {/* Event Name */}
-      <div>
-        <label htmlFor="eventName" className={labelClasses}>
-          Event Name <span className="text-red-400">*</span>
-        </label>
-        <input
-          id="eventName"
-          type="text"
-          {...register('eventName')}
-          className={`${inputClasses} ${errors.eventName ? 'border-red-500/50 focus:border-red-500 focus:ring-red-500/20' : 'border-zinc-800'}`}
-          placeholder="e.g. Tech Conference 2024"
-        />
-        {errors.eventName && <p className="text-red-400 text-xs mt-2 ml-1">{errors.eventName.message}</p>}
-      </div>
+      <Input
+        label="Event Name"
+        placeholder="e.g. Tech Conference 2026"
+        {...register("eventName")}
+        error={errors.eventName?.message as string}
+      />
 
-      {/* Event Banner */}
       <div>
-        <label className={labelClasses}>
+        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5">
           Event Banner
         </label>
         <div className="space-y-4">
-          {eventBannerUrl && (
-            <div className="relative w-full h-48 group">
+          {eventBannerUrl ? (
+            <div className="relative w-full h-48 group rounded-[var(--radius-lg)] overflow-hidden border border-[var(--color-border)]">
               <Image
                 src={eventBannerUrl}
                 alt="Event banner"
                 fill
-                className="object-cover rounded-xl border border-zinc-800"
+                className="object-cover"
+                unoptimized
               />
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-lg text-white hover:bg-white/20 transition-colors"
+                  className="px-4 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-[var(--radius-md)] text-white hover:bg-white/20 transition-colors text-sm font-medium"
                 >
                   Change Image
                 </button>
               </div>
             </div>
-          )}
-          
-          {!eventBannerUrl && (
-            <div 
+          ) : (
+            <button
+              type="button"
+              disabled={isUploading}
               onClick={() => fileInputRef.current?.click()}
-              className="w-full h-32 border-2 border-dashed border-zinc-800 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-zinc-700 hover:bg-zinc-900/30 transition-all group"
+              className="w-full h-32 border-2 border-dashed border-[var(--color-border)] rounded-[var(--radius-lg)] flex flex-col items-center justify-center cursor-pointer hover:border-[var(--color-brand)] hover:bg-[var(--color-surface)] transition-all group disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Upload className="w-8 h-8 text-zinc-600 group-hover:text-zinc-400 mb-2 transition-colors" />
-              <span className="text-sm text-zinc-500 group-hover:text-zinc-400">Click to upload banner</span>
-            </div>
+              {isUploading ? (
+                <Loader2 className="w-8 h-8 text-[var(--color-brand)] animate-spin mb-2" />
+              ) : (
+                <Upload className="w-8 h-8 text-[var(--color-text-tertiary)] group-hover:text-[var(--color-brand)] mb-2 transition-colors" />
+              )}
+              <span className="text-sm text-[var(--color-text-tertiary)] group-hover:text-[var(--color-text-secondary)]">
+                {isUploading ? "Uploading..." : "Click to upload banner"}
+              </span>
+            </button>
           )}
 
           <div className="flex gap-3">
             <div className="relative flex-1">
-              <input
+              <Input
                 type="url"
-                aria-label="Event Banner URL"
                 placeholder="Or paste image URL..."
-                {...register('eventBannerUrl')}
-                className={`${inputClasses} border-zinc-800`}
+                {...register("eventBannerUrl")}
+                error={errors.eventBannerUrl?.message as string}
               />
             </div>
             <input
               type="file"
               ref={fileInputRef}
-              onChange={onImageUpload}
+              onChange={handleImageUpload}
               accept="image/*"
               className="hidden"
             />
@@ -106,149 +113,101 @@ export function BasicInfoTab({
         </div>
       </div>
 
-      {/* Description */}
-      <div>
-        <label htmlFor="eventDescription" className={labelClasses}>
-          Description
-        </label>
-        <textarea
-          id="eventDescription"
-          {...register('eventDescription')}
-          rows={5}
-          className={`${inputClasses} ${errors.eventDescription ? 'border-red-500/50' : 'border-zinc-800'} resize-none`}
-          placeholder="Describe what makes your event special..."
-        />
-        {errors.eventDescription && <p className="text-red-400 text-xs mt-2 ml-1">{errors.eventDescription.message}</p>}
-      </div>
+      <Textarea
+        label="Description"
+        rows={5}
+        placeholder="Describe what makes your event special..."
+        {...register("eventDescription")}
+        error={errors.eventDescription?.message as string}
+      />
 
-      {/* Date & Time */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div className="space-y-4 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
-          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2 mb-4">
-            <Calendar size={16} className="text-emerald-400" />
+        <div className="space-y-4 p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)]">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
             Start Schedule
           </h3>
-          <div>
-            <label className={labelClasses}>Date</label>
-            <input
-              type="date"
-              {...register('startDate')}
-              className={`${inputClasses} border-zinc-800`}
-            />
-            {errors.startDate && <p className="text-red-400 text-xs mt-2 ml-1">{errors.startDate.message}</p>}
-          </div>
-          <div>
-            <label className={labelClasses}>Time</label>
-            <input
-              type="time"
-              {...register('startTime')}
-              className={`${inputClasses} border-zinc-800`}
-            />
-            {errors.startTime && <p className="text-red-400 text-xs mt-2 ml-1">{errors.startTime.message}</p>}
-          </div>
+          <Input
+            label="Date"
+            type="date"
+            {...register("startDate")}
+            error={errors.startDate?.message as string}
+          />
+          <Input
+            label="Time"
+            type="time"
+            {...register("startTime")}
+            error={errors.startTime?.message as string}
+          />
         </div>
 
-        <div className="space-y-4 p-4 bg-zinc-900/30 border border-zinc-800/50 rounded-2xl">
-          <h3 className="text-sm font-semibold text-zinc-300 flex items-center gap-2 mb-4">
-            <Clock size={16} className="text-teal-400" />
+        <div className="space-y-4 p-4 bg-[var(--color-surface)] border border-[var(--color-border)] rounded-[var(--radius-lg)]">
+          <h3 className="text-sm font-semibold text-[var(--color-text-primary)]">
             End Schedule
           </h3>
-          <div>
-            <label className={labelClasses}>Date</label>
-            <input
-              type="date"
-              {...register('endDate')}
-              className={`${inputClasses} border-zinc-800`}
-            />
-            {errors.endDate && <p className="text-red-400 text-xs mt-2 ml-1">{errors.endDate.message}</p>}
-          </div>
-          <div>
-            <label className={labelClasses}>Time</label>
-            <input
-              type="time"
-              {...register('endTime')}
-              className={`${inputClasses} border-zinc-800`}
-            />
-            {errors.endTime && <p className="text-red-400 text-xs mt-2 ml-1">{errors.endTime.message}</p>}
-          </div>
+          <Input
+            label="Date"
+            type="date"
+            {...register("endDate")}
+            error={errors.endDate?.message as string}
+          />
+          <Input
+            label="Time"
+            type="time"
+            {...register("endTime")}
+            error={errors.endTime?.message as string}
+          />
         </div>
       </div>
 
-      {/* Organizer Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div>
-          <label className={labelClasses}>
-            Organizer Name
-          </label>
-          <div className="relative">
-            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
-            <input
-              type="text"
-              {...register('organizerName')}
-              className={`${inputClasses} pl-12 border-zinc-800`}
-              placeholder="Who is hosting?"
-            />
-          </div>
-          {errors.organizerName && <p className="text-red-400 text-xs mt-2 ml-1">{errors.organizerName.message}</p>}
-        </div>
-        <div>
-          <label className={labelClasses}>
-            Organizer Contact
-          </label>
-          <div className="relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
-            <input
-              type="text"
-              {...register('organizerContact')}
-              className={`${inputClasses} pl-12 border-zinc-800`}
-              placeholder="Contact email or phone"
-            />
-          </div>
-          {errors.organizerContact && <p className="text-red-400 text-xs mt-2 ml-1">{errors.organizerContact.message}</p>}
-        </div>
+        <Input
+          label="Organizer Name"
+          placeholder="Who is hosting?"
+          {...register("organizerName")}
+          error={errors.organizerName?.message as string}
+        />
+        <Input
+          label="Organizer Email"
+          type="email"
+          placeholder="Contact email"
+          {...register("organizerEmail")}
+          error={errors.organizerEmail?.message as string}
+        />
+        <Input
+          label="Organizer Contact"
+          placeholder="Phone or alternative contact"
+          {...register("organizerContact")}
+          error={errors.organizerContact?.message as string}
+        />
       </div>
 
-      {/* Event Settings */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <div>
-          <label className={labelClasses}>
+          <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5">
             Visibility
           </label>
           <div className="relative">
-            <Globe className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 pointer-events-none" />
+            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] w-4 h-4 pointer-events-none" />
             <select
-              {...register('visibilityType')}
-              className={`${inputClasses} pl-12 border-zinc-800 appearance-none cursor-pointer`}
+              {...register("visibilityType")}
+              className="w-full h-9 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-input)] border border-[var(--color-input-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-input-focus)] focus:ring-1 focus:ring-[var(--color-input-focus)] appearance-none cursor-pointer"
             >
-              <option value={VISIBILITY_TYPES.PUBLIC}>Public Event</option>
-              <option value={VISIBILITY_TYPES.PRIVATE}>Private Event</option>
+              <option value={VISIBILITY_TYPES.PUBLIC}>Public</option>
+              <option value={VISIBILITY_TYPES.PRIVATE}>Private</option>
               <option value={VISIBILITY_TYPES.WHITELIST}>Invite Only</option>
             </select>
           </div>
         </div>
+
         <div>
-          <label className={labelClasses}>
-            Max Attendees
-          </label>
-          <div className="relative">
-            <Users className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5" />
-            <input
-              type="number"
-              {...register('maxAttendees')}
-              className={`${inputClasses} pl-12 border-zinc-800`}
-              placeholder="Unlimited"
-            />
-          </div>
-        </div>
-        <div>
-          <label className={labelClasses}>
+          <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5">
             Event Status
           </label>
           <div className="relative">
-            <Activity className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 w-5 h-5 pointer-events-none" />
+            <Activity className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] w-4 h-4 pointer-events-none" />
             <select
-              {...register('eventStatus')}
-              className={`${inputClasses} pl-12 border-zinc-800 appearance-none cursor-pointer`}
+              {...register("eventStatus")}
+              className="w-full h-9 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-input)] border border-[var(--color-input-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-input-focus)] focus:ring-1 focus:ring-[var(--color-input-focus)] appearance-none cursor-pointer"
             >
               <option value={EVENT_STATUS.UPCOMING}>Upcoming</option>
               <option value={EVENT_STATUS.ONGOING}>Ongoing</option>
@@ -257,6 +216,40 @@ export function BasicInfoTab({
             </select>
           </div>
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5">
+            Max Attendees
+          </label>
+          <div className="relative">
+            <Users className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] w-4 h-4 pointer-events-none" />
+            <input
+              type="number"
+              placeholder="Unlimited"
+              {...register("maxAttendees", { valueAsNumber: true })}
+              className="w-full h-9 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-input)] border border-[var(--color-input-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-input-focus)] focus:ring-1 focus:ring-[var(--color-input-focus)]"
+            />
+          </div>
+          {errors.maxAttendees && <p className="mt-1 text-xs text-[var(--color-danger)]">{errors.maxAttendees.message as React.ReactNode}</p>}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-[var(--color-text-secondary)] mb-1.5">
+          Total Budget
+        </label>
+        <div className="relative">
+          <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-tertiary)] w-4 h-4 pointer-events-none" />
+          <input
+            type="number"
+            min="0"
+            step="100"
+            placeholder="e.g. 50000"
+            {...register("budget", { valueAsNumber: true })}
+            className="w-full h-9 pl-9 pr-3 rounded-[var(--radius-md)] bg-[var(--color-input)] border border-[var(--color-input-border)] text-sm text-[var(--color-text-primary)] focus:outline-none focus:border-[var(--color-input-focus)] focus:ring-1 focus:ring-[var(--color-input-focus)]"
+          />
+        </div>
+        {errors.budget && <p className="mt-1 text-xs text-[var(--color-danger)]">{errors.budget.message as React.ReactNode}</p>}
       </div>
     </div>
   );

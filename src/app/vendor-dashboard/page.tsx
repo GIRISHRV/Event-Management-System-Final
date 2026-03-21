@@ -1,220 +1,269 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { supabase } from "@/lib/supabase";
-import { VendorService } from "@/lib/supabase-types";
-import PillNav from "@/components/layout/PillNav";
+import { useRouter } from "next/navigation";
+import { useVendorServices } from "@/hooks/useVendors";
+import { vendorsService } from "@/services/vendors.service";
+import type { VendorServiceRow } from "@/schemas/vendor.schema";
+
 import { LoadingScreen } from "@/components/ui/LoadingScreen";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { DashboardToolbar, VENDOR_TABS } from "@/components/dashboard/DashboardToolbar";
+import { DashboardRequestsList } from "@/components/dashboard/DashboardRequestsList";
 import VendorServicesManager from "@/components/vendor/VendorServicesManager";
-import VendorRequestsList from "@/components/vendor/VendorRequestsList";
+import Link from "next/link";
+import { TrendingUp, Users, ArrowUpRight, MapPin, Calendar } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { supabase } from "@/services/supabase/client";
 import VendorServiceForm from "@/components/vendor/VendorServiceForm";
-import { VendorDashboardHeader } from "@/components/vendor/VendorDashboardHeader";
-import { VendorDashboardToolbar } from "@/components/vendor/VendorDashboardToolbar";
-import Squares from "@/components/ui/Squares";
-import { X } from "lucide-react";
+import { Drawer } from "@/components/ui/Drawer";
+import { useToast } from "@/hooks/useToast";
+
+interface CommunityInsight {
+  communityId: string;
+  label: string;
+  eventIds: string[];
+  characteristics: string[];
+}
+
+interface TrendingEvent {
+  id: string;
+  event_name: string;
+  start_date: string;
+  venue_city: string | null;
+  attendee_count: number | null;
+}
 
 export default function VendorDashboardPage() {
-  const router = useRouter();
-  const { session, userProfile, loading, signOut } = useAuth();
-  const [activeTab, setActiveTab] = useState<'services' | 'requests'>('services');
-  const [isAddingService, setIsAddingService] = useState(false);
-  const [editingService, setEditingService] = useState<VendorService | undefined>(undefined);
-  const [services, setServices] = useState<VendorService[]>([]);
-  const [servicesLoading, setServicesLoading] = useState(true);
-  const [isAIOpen, setIsAIOpen] = useState(false);
+  const { session, userProfile, loading } = useAuth();
+  const { error: toastError, success: toastSuccess } = useToast();
 
-  // Fake loading delay constant
-  const MIN_LOADING_TIME = 1500;
+  const [activeTab, setActiveTab] = useState<string>("services");
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingService, setEditingService] = useState<VendorServiceRow | undefined>(undefined);
+  const [insightData, setInsightData] = useState<{
+    communities: CommunityInsight[];
+    trendingEvents: TrendingEvent[];
+    loading: boolean;
+  }>({ communities: [], trendingEvents: [], loading: false });
 
-  useEffect(() => {
-    if (!loading) {
-      if (!session) {
-        router.push("/signin");
-      } else if (userProfile && userProfile.role !== "vendor") {
-        router.push("/customer-dashboard");
-      } else {
-        // Apply vendor theme
-        document.body.classList.add('theme-vendor');
-        document.body.classList.remove('theme-customer');
-      }
-    }
-    return () => {
-      document.body.classList.remove('theme-vendor');
-    };
-  }, [session, userProfile, loading, router]);
+  const userId = session?.user?.id;
 
-  const fetchServices = useCallback(async () => {
-    if (!userProfile?.id) return;
-    
-    setServicesLoading(true);
-    const startTime = Date.now();
+  const { services, isLoading: servicesLoading, mutate: mutateServices } = useVendorServices(userId, { page: 1, limit: 50 });
 
+  const handleDeleteService = useCallback(async (serviceId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("vendor_services")
-        .select("*")
-        .eq("vendor_id", userProfile.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      setServices(data || []);
-    } catch (error) {
-      console.error("Error fetching services:", error);
-    } finally {
-      // Ensure minimum loading time
-      const elapsed = Date.now() - startTime;
-      const remaining = Math.max(0, MIN_LOADING_TIME - elapsed);
-      setTimeout(() => setServicesLoading(false), remaining);
+      const result = await vendorsService.deleteService(serviceId);
+      if (!result.success) throw new Error(result.error?.message);
+      toastSuccess("Service deleted successfully!");
+      mutateServices();
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : "Failed to delete service");
     }
-  }, [userProfile?.id]);
+  }, [mutateServices, toastSuccess, toastError]);
 
-  useEffect(() => {
-    if (userProfile?.id && activeTab === 'services') {
-      fetchServices();
-    }
-  }, [userProfile?.id, activeTab, fetchServices]);
-
-  const handleDeleteService = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this service?")) return;
-
-    try {
-      const { error } = await supabase
-        .from("vendor_services")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-      setServices(services.filter((s) => s.id !== id));
-    } catch (error) {
-      console.error("Error deleting service:", error);
-    }
-  };
-
-  const handleEditService = (service: VendorService) => {
+  const handleEditService = (service: VendorServiceRow) => {
     setEditingService(service);
-    setIsAddingService(true);
+    setIsFormOpen(true);
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    router.push("/");
+  const openCreateForm = () => {
+    setEditingService(undefined);
+    setIsFormOpen(true);
   };
 
-  const navItems = [
-    { label: 'Home', href: '/' },
-    { label: 'Events', href: '/events' },
-    { label: 'Dashboard', href: '/vendor-dashboard' },
-    { label: 'Profile', href: '/profile' }
-  ];
+  const handleFormSuccess = () => {
+    setIsFormOpen(false);
+    setEditingService(undefined);
+    mutateServices();
+  };
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (activeTab === "insights") {
+      const fetchInsights = async () => {
+        setInsightData(prev => ({ ...prev, loading: true }));
+        try {
+          // 1. Fetch communities (GAT+K-Means output)
+          const commRes = await fetch("/api/algorithms/communities");
+          const commData = await commRes.json();
+          
+          // 2. Fetch trending events (iTransformer "increasing" trend)
+          const { data: trending } = await supabase
+            .from("attendance_forecasts")
+            .select("event_id")
+            .eq("trend", "increasing")
+            .limit(20);
+          
+          let trendingEvents: TrendingEvent[] = [];
+          if (trending && trending.length > 0) {
+            const eventIds = [...new Set(trending.map(t => t.event_id))];
+            const { data: events } = await supabase
+              .from("events")
+              .select("id, event_name, start_date, venue_city, attendee_count")
+              .in("id", eventIds)
+              .limit(5);
+            trendingEvents = (events as TrendingEvent[]) || [];
+          }
+
+          setInsightData({
+            communities: (commData.communities?.slice(0, 4) as CommunityInsight[]) || [],
+            trendingEvents,
+            loading: false
+          });
+        } catch {
+          setInsightData(prev => ({ ...prev, loading: false }));
+        }
+      };
+      fetchInsights();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (!loading && (!session || userProfile?.role !== "vendor")) {
+      router.push("/signin");
+    }
+  }, [loading, session, userProfile, router]);
+
+  if (loading || (session && !userProfile)) return <LoadingScreen />;
+  if (!session || userProfile?.role !== "vendor") return null;
 
   return (
-    <div className="min-h-screen bg-zinc-950 relative overflow-hidden">
-      <LoadingScreen message="Authenticating..." isLoading={loading || (!!session && !userProfile)} />
-      
-      {/* Animated Background */}
-      <div className="fixed inset-0 z-0">
-        <Squares
-          direction="diagonal"
-          speed={0.8}
-          borderColor="rgba(99, 102, 241, 0.3)" // Indigo color for vendor theme
-          squareSize={40}
-          hoverFillColor="rgba(99, 102, 241, 0.1)"
-        />
-      </div>
-      
-      {session && userProfile?.role === "vendor" && (
-        <>
-          {/* Navigation */}
-          <PillNav
-            items={navItems}
-            activeHref="/vendor-dashboard"
-            userEmail={session?.user?.email}
-            onSignOut={handleSignOut}
-            showAuth={true}
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <DashboardHeader
+        title={`Welcome back, ${userProfile?.full_name || 'Vendor'}`}
+        subtitle="Manage your services and respond to incoming customer requests."
+        onPrimaryAction={activeTab === 'services' ? openCreateForm : undefined}
+        primaryActionLabel="Add Service"
+      />
+
+      <DashboardToolbar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        tabs={VENDOR_TABS}
+      />
+
+      <div className="bg-[var(--color-surface)] rounded-[var(--radius-lg)] border border-[var(--color-border)] p-6 animate-in fade-in slide-in-from-bottom-2 duration-300 min-h-[600px]">
+        {activeTab === "services" && (
+          <VendorServicesManager
+            services={services}
+            isLoading={servicesLoading}
+            onDelete={handleDeleteService}
+            onEdit={handleEditService}
           />
+        )}
 
-          {/* Content */}
-          <div className="relative z-20 max-w-7xl mx-auto px-6 py-12 pt-24">
-            
-            <VendorDashboardHeader 
-              activeTab={activeTab} 
-              onCreateService={() => setIsAddingService(true)} 
-            />
+        {activeTab === "requests" && (
+          <DashboardRequestsList role="vendor" />
+        )}
 
-            <VendorDashboardToolbar 
-              activeTab={activeTab} 
-              onTabChange={(tab) => setActiveTab(tab as 'services' | 'requests')} 
-            />
-
-            {/* Tab Content */}
-            <div className="mb-8 bg-zinc-950/90 backdrop-blur-sm rounded-xl border border-zinc-700 p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              {activeTab === 'services' ? (
-                <VendorServicesManager 
-                  services={services}
-                  isLoading={servicesLoading}
-                  onDelete={handleDeleteService}
-                  onEdit={handleEditService}
-                />
-              ) : (
-                <VendorRequestsList />
-              )}
-            </div>
-          </div>
-
-          {/* Add Service Modal */}
-          {isAddingService && (
-            <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-200 backdrop-blur-sm overflow-x-auto">
-              <div className={`flex items-stretch gap-6 transition-all duration-500 w-full max-w-[95vw] ${isAIOpen ? '' : 'justify-center'}`}>
-                {/* AI Panel Slot */}
-                <div 
-                  id="ai-panel-slot" 
-                  className={`shrink-0 transition-all duration-500 ease-in-out ${isAIOpen ? 'w-1/2 opacity-100 translate-x-0' : 'w-0 opacity-0 translate-x-10'}`}
-                  style={{ overflow: 'hidden' }}
-                />
-
-                <div className={`bg-zinc-950 rounded-2xl max-h-[85vh] overflow-hidden flex flex-col border border-zinc-800 shadow-2xl animate-in fade-in zoom-in-95 transition-all duration-500 ease-in-out ${isAIOpen ? 'w-1/2' : 'w-full max-w-2xl'}`}>
-                  <div className="p-6 border-b border-zinc-800 flex justify-between items-center bg-zinc-900/50">
-                    <h3 className="text-xl font-semibold text-white">
-                      {editingService ? 'Edit Service' : 'Add New Service'}
-                    </h3>
-                    <button 
-                      onClick={() => {
-                        setIsAddingService(false);
-                        setEditingService(undefined);
-                        setIsAIOpen(false);
-                      }}
-                      className="text-zinc-400 hover:text-white transition-colors p-1 hover:bg-zinc-800 rounded-lg"
-                    >
-                      <X size={24} />
-                    </button>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                    <VendorServiceForm 
-                      initialData={editingService}
-                      onClose={() => {
-                        setIsAddingService(false);
-                        setEditingService(undefined);
-                        setIsAIOpen(false);
-                      }}
-                      onSuccess={() => {
-                        setIsAddingService(false);
-                        setEditingService(undefined);
-                        fetchServices();
-                        setIsAIOpen(false);
-                      }}
-                      onAIStateChange={setIsAIOpen}
-                    />
-                  </div>
+        {activeTab === "insights" && (
+          <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Communities Section */}
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-xl bg-purple-500/10 text-purple-500">
+                  <Users size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Top Active Communities</h3>
+                  <p className="text-sm text-[var(--color-text-tertiary)]">Reach concentrated groups of engaged event planners.</p>
                 </div>
               </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {insightData.loading ? (
+                   [...Array(4)].map((_, i) => <Card key={i} className="h-32 animate-pulse bg-[var(--color-surface-hover)]" />)
+                ) : insightData.communities.map((c, i) => (
+                  <Card key={i} className="p-5 border-[var(--color-border)] hover:border-purple-500/50 transition-colors group relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-2 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <Users size={48} />
+                    </div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-purple-500 mb-2">Cluster {c.communityId}</p>
+                    <h4 className="font-bold text-[var(--color-text-primary)] mb-1">{c.label}</h4>
+                    <p className="text-xs text-[var(--color-text-secondary)]">{c.eventIds.length} Active Events</p>
+                    <div className="mt-4 flex gap-1 flex-wrap">
+                      {c.characteristics.slice(0, 2).map((char, idx) => (
+                        <Badge key={idx} variant="secondary" className="text-[9px] px-1.5 py-0 h-4">{char}</Badge>
+                      ))}
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
-          )}
-        </>
-      )}
+
+            {/* Trending Events Section */}
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500">
+                  <TrendingUp size={24} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-[var(--color-text-primary)] tracking-tight">Trending Events</h3>
+                  <p className="text-sm text-[var(--color-text-tertiary)]">Upcoming events with high predicted growth (iTransformer).</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {insightData.loading ? (
+                   [...Array(3)].map((_, i) => <Card key={i} className="h-20 animate-pulse bg-[var(--color-surface-hover)]" />)
+                ) : insightData.trendingEvents.length === 0 ? (
+                  <div className="py-12 text-center border-2 border-dashed border-[var(--color-border)] rounded-3xl">
+                    <p className="text-[var(--color-text-tertiary)] text-sm italic">No high-growth events identified this hour.</p>
+                  </div>
+                ) : insightData.trendingEvents.map((e, i) => (
+                  <Link key={i} href={`/event/${e.id}`} className="block group">
+                    <Card className="p-4 flex items-center justify-between border-[var(--color-border)] hover:border-emerald-500/50 hover:bg-emerald-500/[0.02] transition-all">
+                      <div className="flex items-center gap-6">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center text-emerald-600 border border-emerald-500/10">
+                          <TrendingUp size={20} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-[var(--color-text-primary)] group-hover:text-emerald-500 transition-colors uppercase tracking-tight">{e.event_name}</h4>
+                          <div className="flex items-center gap-4 mt-1 text-[11px] text-[var(--color-text-tertiary)] font-medium">
+                             <span className="flex items-center gap-1"><Calendar size={12} /> {new Date(e.start_date).toLocaleDateString()}</span>
+                             <span className="flex items-center gap-1"><MapPin size={12} /> {e.venue_city}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right flex items-center gap-6">
+                        <div>
+                          <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest leading-none mb-1">Status</p>
+                          <Badge variant="success" className="bg-emerald-500/10 text-emerald-500 border-none h-5 px-2 text-[10px] font-bold">Increasing</Badge>
+                        </div>
+                        <ArrowUpRight size={18} className="text-[var(--color-text-tertiary)] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                      </div>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <Drawer
+        isOpen={isFormOpen}
+        onClose={() => {
+          setIsFormOpen(false);
+          setEditingService(undefined);
+        }}
+        title={editingService ? "Edit Service" : "Create Service"}
+        description={editingService ? "Update your service details." : "Add a new service for event organizers to discover."}
+        size="lg"
+      >
+        <VendorServiceForm
+          onClose={() => {
+            setIsFormOpen(false);
+            setEditingService(undefined);
+          }}
+          onSuccess={handleFormSuccess}
+          initialData={editingService}
+        />
+      </Drawer>
     </div>
   );
 }
-
-

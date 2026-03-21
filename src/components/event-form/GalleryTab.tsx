@@ -1,10 +1,14 @@
-import React, { useState, memo, useCallback, useMemo } from 'react';
-import { Plus, Trash2, Upload, ImageOff, Image as ImageIcon, Video } from 'lucide-react';
-import { UseFormWatch, UseFormSetValue } from 'react-hook-form';
-import { EventFormSchema } from '@/lib/schemas';
+import React, { useState, memo, useCallback, useMemo, useRef } from 'react';
+import { Trash2, Upload, ImageOff, Image as ImageIcon, Video } from 'lucide-react';
+import { type UseFormReturn } from 'react-hook-form';
+import { type EventFormData } from '@/schemas/event.schema';
 import Image from 'next/image';
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { storageService } from "@/services/supabase/storage";
+import { useToast } from "@/hooks/useToast";
+import { getErrorMessage } from "@/lib/errors";
 
-// Memoized gallery image item for performance
 const GalleryImageItem = memo(function GalleryImageItem({
   image,
   index,
@@ -16,72 +20,98 @@ const GalleryImageItem = memo(function GalleryImageItem({
 }) {
   const [hasError, setHasError] = useState(false);
 
-  const handleRemove = useCallback(() => {
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
     onRemove(index);
-  }, [onRemove, index]);
+  };
 
   return (
-    <div className="relative group aspect-video rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900">
+    <div className="relative group aspect-video rounded-[var(--radius-lg)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-background)] shadow-sm transition-all hover:border-[var(--color-border-hover)]">
       {hasError ? (
-        <div className="w-full h-full flex flex-col items-center justify-center text-zinc-500">
-          <ImageOff className="w-8 h-8 mb-2" />
-          <span className="text-xs">Failed to load</span>
+        <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-text-tertiary)] p-4 text-center bg-[var(--color-surface)]">
+          <ImageOff className="w-8 h-8 mb-2 opacity-20" />
+          <span className="text-[10px] uppercase tracking-wider font-bold mb-1 text-[var(--color-text-secondary)]">Invalid Image</span>
+          <a href={image} target="_blank" rel="noopener noreferrer" className="text-[9px] text-[var(--color-brand)] hover:underline truncate max-w-full">
+            Show original
+          </a>
         </div>
       ) : (
-        <>
-          <Image
-            src={image}
-            alt={`Gallery ${index + 1}`}
-            fill
-            className="object-cover transition-transform duration-500 group-hover:scale-110"
-            onError={() => setHasError(true)}
-            unoptimized={image.startsWith('data:') || image.startsWith('blob:')}
-          />
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <button
-              type="button"
-              onClick={handleRemove}
-              className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full transform scale-90 group-hover:scale-100 transition-all"
-            >
-              <Trash2 size={18} />
-            </button>
-          </div>
-        </>
+        <Image
+          src={image}
+          alt={`Gallery ${index + 1}`}
+          fill
+          className="object-cover transition-transform duration-500 group-hover:scale-105"
+          onError={() => setHasError(true)}
+          unoptimized
+        />
       )}
+      <button type="button" onClick={handleRemove} className="absolute top-2 right-2 p-1.5 bg-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] text-white rounded-[var(--radius-md)] shadow-lg z-20 transition-all opacity-80 group-hover:opacity-100" title="Remove image">
+        <Trash2 size={14} />
+      </button>
+    </div>
+  );
+});
+
+const GalleryVideoItem = memo(function GalleryVideoItem({
+  video,
+  index,
+  onRemove,
+}: {
+  video: string;
+  index: number;
+  onRemove: (index: number) => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const isDirectVideo = useMemo(() => video.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) || video.includes('supabase.co/storage/v1/object/public/'), [video]);
+
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRemove(index);
+  };
+
+  return (
+    <div className="relative group aspect-video rounded-[var(--radius-lg)] overflow-hidden border border-[var(--color-border)] bg-[var(--color-background)] shadow-sm transition-all hover:border-[var(--color-border-hover)]">
+      {isDirectVideo && !hasError ? (
+        <video src={video} className="w-full h-full object-cover" onError={() => setHasError(true)} preload="metadata" />
+      ) : (
+        <div className="w-full h-full flex flex-col items-center justify-center text-[var(--color-text-tertiary)] p-4 text-center bg-[var(--color-surface)]">
+          <Video className="w-8 h-8 mb-2 text-[var(--color-brand)] opacity-50" />
+          <span className="text-[10px] uppercase tracking-wider font-bold truncate max-w-full italic px-2 mb-1 text-[var(--color-text-secondary)]">
+            {video.split('/').pop()?.split('?')[0] || 'Video Item'}
+          </span>
+          <a href={video} target="_blank" rel="noopener noreferrer" className="text-[9px] text-[var(--color-brand)] hover:underline truncate max-w-full">
+            Open Video
+          </a>
+        </div>
+      )}
+      <button type="button" onClick={handleRemove} className="absolute top-2 right-2 p-1.5 bg-[var(--color-danger)] hover:bg-[var(--color-danger-hover)] text-white rounded-[var(--radius-md)] shadow-lg z-20 transition-all opacity-80 group-hover:opacity-100" title="Remove video">
+        <Trash2 size={14} />
+      </button>
+      <div className="absolute bottom-2 left-2 px-1.5 py-0.5 bg-black/60 text-[10px] font-medium text-white rounded backdrop-blur-sm pointer-events-none z-10">
+        VIDEO
+      </div>
     </div>
   );
 });
 
 interface GalleryTabProps {
-  watch: UseFormWatch<EventFormSchema>;
-  setValue: UseFormSetValue<EventFormSchema>;
-  uploadingGalleryType: 'image' | 'video' | null;
-  onGalleryImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onGalleryVideoUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  galleryImageInputRef: React.RefObject<HTMLInputElement | null>;
-  galleryVideoInputRef: React.RefObject<HTMLInputElement | null>;
+  form: UseFormReturn<EventFormData>;
+  eventId?: string;
 }
 
-export function GalleryTab({
-  watch,
-  setValue,
-  uploadingGalleryType,
-  onGalleryImageUpload,
-  onGalleryVideoUpload,
-  galleryImageInputRef,
-  galleryVideoInputRef,
-}: GalleryTabProps) {
-  const watchedGalleryImages = watch('galleryImages');
-  const watchedGalleryVideos = watch('galleryVideos');
-  
-  // Memoize arrays to prevent useCallback dependency issues
-  const galleryImages = useMemo(() => watchedGalleryImages || [], [watchedGalleryImages]);
-  const galleryVideos = useMemo(() => watchedGalleryVideos || [], [watchedGalleryVideos]);
+export function GalleryTab({ form, eventId }: GalleryTabProps) {
+  const { watch, setValue, getValues } = form;
+  const { error: toastError, success: toastSuccess } = useToast();
+
+  const [uploadingType, setUploadingType] = useState<'image' | 'video' | null>(null);
+  const galleryImageInputRef = useRef<HTMLInputElement>(null);
+  const galleryVideoInputRef = useRef<HTMLInputElement>(null);
+
+  const galleryImages = useMemo(() => watch('galleryImages') || [], [watch]);
+  const galleryVideos = useMemo(() => watch('galleryVideos') || [], [watch]);
 
   const addImage = useCallback((url: string) => {
-    if (url.trim()) {
-      setValue('galleryImages', [...galleryImages, url.trim()], { shouldValidate: true, shouldDirty: true });
-    }
+    if (url.trim()) setValue('galleryImages', [...galleryImages, url.trim()], { shouldValidate: true, shouldDirty: true });
   }, [galleryImages, setValue]);
 
   const removeImage = useCallback((index: number) => {
@@ -89,195 +119,153 @@ export function GalleryTab({
   }, [galleryImages, setValue]);
 
   const addVideo = useCallback((url: string) => {
-    if (url.trim()) {
-      setValue('galleryVideos', [...galleryVideos, url.trim()], { shouldValidate: true, shouldDirty: true });
-    }
+    if (url.trim()) setValue('galleryVideos', [...galleryVideos, url.trim()], { shouldValidate: true, shouldDirty: true });
   }, [galleryVideos, setValue]);
 
   const removeVideo = useCallback((index: number) => {
     setValue('galleryVideos', galleryVideos.filter((_, i) => i !== index), { shouldValidate: true, shouldDirty: true });
   }, [galleryVideos, setValue]);
 
-  const inputClasses = `
-    flex-1 px-3 py-2.5 bg-zinc-900/50 border border-zinc-800 rounded-xl text-white placeholder-zinc-500 
-    focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 
-    transition-all duration-200
-  `;
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingType('image');
+      const url = await storageService.uploadFile('events', file, { folder: eventId || 'new-event/gallery' });
+      const currentImages = getValues('galleryImages') || [];
+      setValue('galleryImages', [...currentImages, url], { shouldValidate: true, shouldDirty: true });
+      toastSuccess("Gallery image uploaded");
+    } catch (error: unknown) {
+      toastError(getErrorMessage(error, "Failed to upload image"));
+    } finally {
+      setUploadingType(null);
+      if (galleryImageInputRef.current) galleryImageInputRef.current.value = '';
+    }
+  };
+
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setUploadingType('video');
+      const url = await storageService.uploadFile('events', file, { folder: eventId || 'new-event/videos' });
+      const currentVideos = getValues('galleryVideos') || [];
+      setValue('galleryVideos', [...currentVideos, url], { shouldValidate: true, shouldDirty: true });
+      toastSuccess("Video uploaded");
+    } catch (error: unknown) {
+      toastError(getErrorMessage(error, "Failed to upload video"));
+    } finally {
+      setUploadingType(null);
+      if (galleryVideoInputRef.current) galleryVideoInputRef.current.value = '';
+    }
+  };
 
   return (
     <div className="space-y-8">
-      {/* Gallery Images */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <ImageIcon className="text-emerald-400" size={20} />
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+              <ImageIcon className="text-[var(--color-brand)]" size={20} />
               Photo Gallery
             </h3>
-            <p className="text-sm text-zinc-400 mt-1">Showcase your event with high-quality images</p>
+            <p className="text-sm text-[var(--color-text-tertiary)] mt-1">Showcase your event with high-quality images</p>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="flex gap-3">
-            <input
-              type="url"
-              aria-label="Add image URL"
-              placeholder="Paste image URL..."
-              className={inputClasses}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const input = e.target as HTMLInputElement;
-                  addImage(input.value);
-                  input.value = '';
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={(e) => {
-                const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input') as HTMLInputElement;
-                addImage(input?.value || '');
-                if (input) input.value = '';
-              }}
-              className="px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors font-medium"
-            >
-              Add
-            </button>
-            <button
-              type="button"
-              onClick={() => galleryImageInputRef.current?.click()}
-              disabled={uploadingGalleryType === 'image'}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-600/50 text-white rounded-xl transition-colors flex items-center gap-2 font-medium shadow-lg shadow-emerald-500/20"
-            >
-              {uploadingGalleryType === 'image' ? (
-                <span className="animate-pulse">Uploading...</span>
-              ) : (
-                <>
-                  <Upload size={18} />
-                  Upload
-                </>
-              )}
-            </button>
-            <input
-              ref={galleryImageInputRef}
-              type="file"
-              onChange={onGalleryImageUpload}
-              accept="image/*"
-              className="hidden"
-            />
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <Input
+                label="Add Image URL"
+                type="url"
+                placeholder="Paste image URL..."
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const input = e.target as HTMLInputElement;
+                    addImage(input.value);
+                    input.value = '';
+                  }
+                }}
+              />
+            </div>
+            <Button type="button" variant="secondary" onClick={(e) => {
+              const input = (e.target as HTMLButtonElement).parentElement?.parentElement?.querySelector('input') as HTMLInputElement;
+              addImage(input?.value || '');
+              if (input) input.value = '';
+            }}>Add</Button>
+            <Button type="button" variant="primary" disabled={uploadingType === 'image'} onClick={() => galleryImageInputRef.current?.click()}>
+              {uploadingType === 'image' ? "Uploading..." : <><Upload className="w-4 h-4 mr-2" /> Upload</>}
+            </Button>
+            <input ref={galleryImageInputRef} type="file" onChange={handleImageUpload} accept="image/*" className="hidden" />
           </div>
 
           {galleryImages.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/20">
-              <ImageIcon className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-              <p className="text-zinc-500">No images added yet</p>
+            <div className="text-center py-12 border-2 border-dashed border-[var(--color-border)] rounded-[var(--radius-lg)] bg-[var(--color-surface)]">
+              <ImageIcon className="w-12 h-12 text-[var(--color-text-tertiary)] mx-auto mb-3" />
+              <p className="text-sm text-[var(--color-text-secondary)]">No images added yet</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {galleryImages.map((image, index) => (
-                <GalleryImageItem
-                  key={index}
-                  image={image}
-                  index={index}
-                  onRemove={removeImage}
-                />
+                <GalleryImageItem key={image} image={image} index={index} onRemove={removeImage} />
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {/* Divider */}
-      <div className="h-px bg-zinc-800" />
+      <div className="h-px bg-[var(--color-border)]" />
 
-      {/* Gallery Videos */}
       <div>
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Video className="text-teal-400" size={20} />
+            <h3 className="text-lg font-semibold text-[var(--color-text-primary)] flex items-center gap-2">
+              <Video className="text-[var(--color-success)]" size={20} />
               Video Gallery
             </h3>
-            <p className="text-sm text-zinc-400 mt-1">Add video highlights or teasers</p>
+            <p className="text-sm text-[var(--color-text-tertiary)] mt-1">Add video highlights or teasers</p>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="flex gap-3">
-            <input
-              type="url"
-              aria-label="Add video URL"
-              placeholder="Paste video URL..."
-              className={inputClasses}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  const input = e.target as HTMLInputElement;
-                  addVideo(input.value);
-                  input.value = '';
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={(e) => {
-                const input = (e.target as HTMLButtonElement).parentElement?.querySelector('input') as HTMLInputElement;
-                addVideo(input?.value || '');
-                if (input) input.value = '';
-              }}
-              className="px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl transition-colors font-medium"
-            >
-              Add
-            </button>
-            <button
-              type="button"
-              onClick={() => galleryVideoInputRef.current?.click()}
-              disabled={uploadingGalleryType === 'video'}
-              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-500 disabled:bg-teal-600/50 text-white rounded-xl transition-colors flex items-center gap-2 font-medium shadow-lg shadow-teal-500/20"
-            >
-              {uploadingGalleryType === 'video' ? (
-                <span className="animate-pulse">Uploading...</span>
-              ) : (
-                <>
-                  <Upload size={18} />
-                  Upload
-                </>
-              )}
-            </button>
-            <input
-              ref={galleryVideoInputRef}
-              type="file"
-              onChange={onGalleryVideoUpload}
-              accept="video/*"
-              className="hidden"
-            />
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <Input
+                label="Add Video URL"
+                type="url"
+                placeholder="Paste video URL..."
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const input = e.target as HTMLInputElement;
+                    addVideo(input.value);
+                    input.value = '';
+                  }
+                }}
+              />
+            </div>
+            <Button type="button" variant="secondary" onClick={(e) => {
+              const input = (e.target as HTMLButtonElement).parentElement?.parentElement?.querySelector('input') as HTMLInputElement;
+              addVideo(input?.value || '');
+              if (input) input.value = '';
+            }}>Add</Button>
+            <Button type="button" variant="primary" disabled={uploadingType === 'video'} onClick={() => galleryVideoInputRef.current?.click()}>
+              {uploadingType === 'video' ? "Uploading..." : <><Upload className="w-4 h-4 mr-2" /> Upload</>}
+            </Button>
+            <input ref={galleryVideoInputRef} type="file" onChange={handleVideoUpload} accept="video/*" className="hidden" />
           </div>
 
           {galleryVideos.length === 0 ? (
-            <div className="text-center py-12 border-2 border-dashed border-zinc-800 rounded-2xl bg-zinc-900/20">
-              <Video className="w-12 h-12 text-zinc-700 mx-auto mb-3" />
-              <p className="text-zinc-500">No videos added yet</p>
+            <div className="text-center py-12 border-2 border-dashed border-[var(--color-border)] rounded-[var(--radius-lg)] bg-[var(--color-surface)]">
+              <Video className="w-12 h-12 text-[var(--color-text-tertiary)] mx-auto mb-3" />
+              <p className="text-[var(--color-text-secondary)] text-sm">No videos added yet</p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {galleryVideos.map((video, index) => (
-                <div key={index} className="flex items-center gap-4 bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 group hover:border-zinc-700 transition-colors">
-                  <div className="w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center text-zinc-500">
-                    <Video size={20} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="truncate text-sm text-zinc-300 font-medium">{video}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeVideo(index)}
-                    className="p-2 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
+                <GalleryVideoItem key={video} video={video} index={index} onRemove={removeVideo} />
               ))}
             </div>
           )}

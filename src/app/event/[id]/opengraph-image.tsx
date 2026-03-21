@@ -26,12 +26,12 @@ export default async function Image({ params }: { params: Promise<{ id: string }
     .single();
 
   const eventName = event?.event_name || 'Event';
-  const eventDate = event?.start_date 
-    ? new Date(event.start_date).toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-      })
+  const eventDate = event?.start_date
+    ? new Date(event.start_date).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    })
     : '';
   const venueCity = event?.venue_city || '';
   const bannerUrl = event?.event_banner_url || '';
@@ -82,7 +82,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               objectFit: 'cover',
             }}
           />
-          
+
           {/* Dark overlay gradient */}
           <div
             style={{
@@ -94,8 +94,8 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               background: 'linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0.3) 100%)',
             }}
           />
-          
-          {/* Green accent bar */}
+
+          {/* Blue accent bar */}
           <div
             style={{
               position: 'absolute',
@@ -103,10 +103,10 @@ export default async function Image({ params }: { params: Promise<{ id: string }
               left: 0,
               right: 0,
               height: '8px',
-              background: 'linear-gradient(to right, #16a34a, #22c55e)',
+              background: 'linear-gradient(to right, #1d4ed8, #3b82f6)',
             }}
           />
-          
+
           {/* Content at bottom */}
           <div
             style={{
@@ -132,7 +132,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             >
               {eventName}
             </div>
-            
+
             {/* Event Details */}
             <div
               style={{
@@ -154,7 +154,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
-                <span style={{ color: '#22c55e', fontWeight: 'bold' }}>EMS</span>
+                <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>EMS</span>
               </div>
             </div>
           </div>
@@ -182,7 +182,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           backgroundImage: 'linear-gradient(to bottom right, #18181b, #09090b)',
         }}
       >
-        {/* Green accent bar */}
+        {/* Blue accent bar */}
         <div
           style={{
             position: 'absolute',
@@ -190,10 +190,10 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             left: 0,
             right: 0,
             height: '8px',
-            background: 'linear-gradient(to right, #16a34a, #22c55e)',
+            background: 'linear-gradient(to right, #1d4ed8, #3b82f6)',
           }}
         />
-        
+
         {/* Content */}
         <div
           style={{
@@ -218,7 +218,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
           >
             {eventName}
           </div>
-          
+
           {/* Event Details */}
           <div
             style={{
@@ -241,7 +241,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             )}
           </div>
         </div>
-        
+
         {/* Footer */}
         <div
           style={{
@@ -254,7 +254,7 @@ export default async function Image({ params }: { params: Promise<{ id: string }
             color: '#71717a',
           }}
         >
-          <span style={{ color: '#22c55e', fontWeight: 'bold' }}>EMS</span>
+          <span style={{ color: '#3b82f6', fontWeight: 'bold' }}>EMS</span>
           <span>Event Management System</span>
         </div>
       </div>

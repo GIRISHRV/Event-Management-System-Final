@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/algorithms/communities",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

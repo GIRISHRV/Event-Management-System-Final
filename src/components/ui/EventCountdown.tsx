@@ -85,7 +85,7 @@ export const EventCountdown = memo(function EventCountdown({
 
   if (timeLeft.isPast) {
     return (
-      <span className={`text-zinc-500 text-sm ${className}`}>
+      <span className={`text-zinc-500 text-sm font-medium ${className}`}>
         Event has started
       </span>
     );
@@ -95,8 +95,8 @@ export const EventCountdown = memo(function EventCountdown({
   if (compact) {
     if (timeLeft.isToday) {
       return (
-        <span className={`text-primary text-sm font-medium flex items-center gap-1 ${className}`}>
-          <Clock size={14} className="animate-pulse" />
+        <span className={`text-blue-400 text-sm font-semibold flex items-center gap-2 ${className}`}>
+          <Clock size={16} className="animate-pulse" />
           Today {startTime && `at ${startTime}`}
         </span>
       );
@@ -104,8 +104,8 @@ export const EventCountdown = memo(function EventCountdown({
 
     if (timeLeft.days === 0) {
       return (
-        <span className={`text-orange-400 text-sm font-medium flex items-center gap-1 ${className}`}>
-          <Clock size={14} />
+        <span className={`text-orange-400 text-sm font-semibold flex items-center gap-2 ${className}`}>
+          <Clock size={16} />
           In {timeLeft.hours}h {timeLeft.minutes}m
         </span>
       );
@@ -113,8 +113,8 @@ export const EventCountdown = memo(function EventCountdown({
 
     if (timeLeft.days === 1) {
       return (
-        <span className={`text-yellow-400 text-sm font-medium flex items-center gap-1 ${className}`}>
-          <Clock size={14} />
+        <span className={`text-yellow-400 text-sm font-semibold flex items-center gap-2 ${className}`}>
+          <Clock size={16} />
           Tomorrow
         </span>
       );
@@ -122,16 +122,16 @@ export const EventCountdown = memo(function EventCountdown({
 
     if (timeLeft.isThisWeek) {
       return (
-        <span className={`text-blue-400 text-sm font-medium flex items-center gap-1 ${className}`}>
-          <Clock size={14} />
+        <span className={`text-blue-400 text-sm font-semibold flex items-center gap-2 ${className}`}>
+          <Clock size={16} />
           In {timeLeft.days} days
         </span>
       );
     }
 
     return (
-      <span className={`text-zinc-400 text-sm flex items-center gap-1 ${className}`}>
-        <Clock size={14} />
+      <span className={`text-zinc-400 text-sm font-medium flex items-center gap-2 ${className}`}>
+        <Clock size={16} />
         {timeLeft.days}d {timeLeft.hours}h
       </span>
     );
@@ -139,25 +139,25 @@ export const EventCountdown = memo(function EventCountdown({
 
   // Full countdown display
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
+    <div className={`flex items-center gap-4 ${className}`}>
       <div className="text-center">
-        <div className="text-2xl font-bold text-white">{timeLeft.days}</div>
-        <div className="text-xs text-zinc-500 uppercase">Days</div>
+        <div className="text-3xl font-bold text-white">{timeLeft.days}</div>
+        <div className="text-xs text-zinc-400 uppercase font-semibold">Days</div>
       </div>
-      <span className="text-zinc-600 text-xl">:</span>
+      <span className="text-zinc-600 text-2xl font-bold">:</span>
       <div className="text-center">
-        <div className="text-2xl font-bold text-white">{timeLeft.hours}</div>
-        <div className="text-xs text-zinc-500 uppercase">Hours</div>
+        <div className="text-3xl font-bold text-white">{timeLeft.hours}</div>
+        <div className="text-xs text-zinc-400 uppercase font-semibold">Hours</div>
       </div>
-      <span className="text-zinc-600 text-xl">:</span>
+      <span className="text-zinc-600 text-2xl font-bold">:</span>
       <div className="text-center">
-        <div className="text-2xl font-bold text-white">{timeLeft.minutes}</div>
-        <div className="text-xs text-zinc-500 uppercase">Mins</div>
+        <div className="text-3xl font-bold text-white">{timeLeft.minutes}</div>
+        <div className="text-xs text-zinc-400 uppercase font-semibold">Mins</div>
       </div>
-      <span className="text-zinc-600 text-xl">:</span>
+      <span className="text-zinc-600 text-2xl font-bold">:</span>
       <div className="text-center">
-        <div className="text-2xl font-bold text-primary">{timeLeft.seconds}</div>
-        <div className="text-xs text-zinc-500 uppercase">Secs</div>
+        <div className="text-3xl font-bold text-blue-600">{timeLeft.seconds}</div>
+        <div className="text-xs text-zinc-400 uppercase font-semibold">Secs</div>
       </div>
     </div>
   );

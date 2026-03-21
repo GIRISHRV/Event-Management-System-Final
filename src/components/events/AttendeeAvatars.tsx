@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, memo } from "react";
+import { useState, useEffect, memo, useCallback } from "react";
 import Image from "next/image";
 import { Users } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/services/supabase/client";
 
 interface Attendee {
   id: string;
@@ -30,55 +30,50 @@ export const AttendeeAvatars = memo(function AttendeeAvatars({
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchAttendees = async () => {
-      try {
-        // Get confirmed bookings
-        const { data: bookingsData, error: bookingsError, count } = await supabase
-          .from("bookings")
-          .select("user_id", { count: "exact" })
-          .eq("event_id", eventId)
-          .eq("status", "confirmed")
-          .limit(maxDisplay);
+  const fetchAttendees = useCallback(async () => {
+    try {
+      const { data: bookingsData, error: bookingsError, count } = await supabase
+        .from("bookings")
+        .select("user_id", { count: "exact" })
+        .eq("event_id", eventId)
+        .eq("status", "confirmed")
+        .limit(maxDisplay);
 
-        if (bookingsError) throw bookingsError;
+      if (bookingsError) throw bookingsError;
 
-        if (!bookingsData || bookingsData.length === 0) {
-          setAttendees([]);
-          setTotalCount(0);
-          return;
-        }
-
-        // Get profiles for these users
-        const userIds = bookingsData.map((b) => b.user_id).filter(Boolean);
-        const { data: profilesData, error: profilesError } = await supabase
-          .from("profiles")
-          .select("id, full_name, avatar_url")
-          .in("id", userIds);
-
-        if (profilesError) throw profilesError;
-
-        const attendeeList: Attendee[] = (profilesData || []).map((profile) => ({
-          id: profile.id,
-          full_name: profile.full_name,
-          avatar_url: profile.avatar_url,
-        }));
-
-        setAttendees(attendeeList);
-        setTotalCount(count || 0);
-      } catch (err) {
-        const error = err as Error;
-        console.error('[AttendeeAvatars] Error fetching attendees:', error.message || 'Network error - Supabase may be unreachable');
-        // Failed to fetch attendees - show empty state
+      if (!bookingsData || bookingsData.length === 0) {
         setAttendees([]);
         setTotalCount(0);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
 
-    fetchAttendees();
+      const userIds = bookingsData.map((b) => b.user_id).filter(Boolean);
+      const { data: profilesData, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, avatar_url")
+        .in("id", userIds);
+
+      if (profilesError) throw profilesError;
+
+      const attendeeList: Attendee[] = (profilesData || []).map((profile) => ({
+        id: profile.id,
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url,
+      }));
+
+      setAttendees(attendeeList);
+      setTotalCount(count || 0);
+    } catch {
+      setAttendees([]);
+      setTotalCount(0);
+    } finally {
+      setLoading(false);
+    }
   }, [eventId, maxDisplay]);
+
+  useEffect(() => {
+    fetchAttendees();
+  }, [fetchAttendees]);
 
   const sizeClasses = {
     sm: "w-6 h-6 text-xs",
@@ -99,7 +94,7 @@ export const AttendeeAvatars = memo(function AttendeeAvatars({
           {[...Array(3)].map((_, i) => (
             <div
               key={i}
-              className={`${sizeClasses[size]} ${i > 0 ? overlapClasses[size] : ""} rounded-full bg-zinc-700 animate-pulse border-2 border-zinc-900`}
+              className={`${sizeClasses[size]} ${i > 0 ? overlapClasses[size] : ""} rounded-full bg-[#2b2b2b] animate-pulse border-2 border-[#1a1a1a]`}
             />
           ))}
         </div>
@@ -109,7 +104,7 @@ export const AttendeeAvatars = memo(function AttendeeAvatars({
 
   if (totalCount === 0) {
     return (
-      <div className={`flex items-center gap-2 text-zinc-500 ${className}`}>
+      <div className={`flex items-center gap-2 text-zinc-400 ${className}`}>
         <Users size={size === "sm" ? 14 : size === "md" ? 16 : 20} />
         <span className="text-sm">No attendees yet</span>
       </div>
@@ -124,7 +119,7 @@ export const AttendeeAvatars = memo(function AttendeeAvatars({
         {attendees.map((attendee, index) => (
           <div
             key={attendee.id}
-            className={`${sizeClasses[size]} ${index > 0 ? overlapClasses[size] : ""} rounded-full border-2 border-zinc-900 bg-zinc-700 overflow-hidden relative`}
+            className={`${sizeClasses[size]} ${index > 0 ? overlapClasses[size] : ""} rounded-full border-2 border-[#1a1a1a] bg-[#2b2b2b] overflow-hidden relative`}
             title={attendee.full_name || "Attendee"}
           >
             {attendee.avatar_url ? (
@@ -133,9 +128,10 @@ export const AttendeeAvatars = memo(function AttendeeAvatars({
                 alt={attendee.full_name || "Attendee"}
                 fill
                 className="object-cover"
+                unoptimized
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-green-500 to-green-600 text-white font-medium">
+              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#2563eb] to-blue-600 text-white font-medium">
                 {attendee.full_name?.[0]?.toUpperCase() || "?"}
               </div>
             )}
@@ -144,7 +140,7 @@ export const AttendeeAvatars = memo(function AttendeeAvatars({
 
         {remainingCount > 0 && (
           <div
-            className={`${sizeClasses[size]} ${overlapClasses[size]} rounded-full border-2 border-zinc-900 bg-zinc-800 flex items-center justify-center text-zinc-300 font-medium`}
+            className={`${sizeClasses[size]} ${overlapClasses[size]} rounded-full border-2 border-[#1a1a1a] bg-[#2b2b2b] flex items-center justify-center text-zinc-300 font-medium`}
           >
             +{remainingCount}
           </div>

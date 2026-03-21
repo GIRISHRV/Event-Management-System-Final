@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { ThemeProvider } from "@/context/ThemeContext";
+import { ToastProvider } from "@/context/ToastContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EMS (WIP)",
-  description: "Event Management System",
+  title: "EventMS | Event Management Made Simple",
+  description: "Plan, organize, and manage your events with ease. Connect with vendors, track RSVPs, and create memorable experiences.",
 };
 
 export default function RootLayout({
@@ -27,14 +27,15 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950 text-white`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[var(--color-background)] text-[var(--color-text-primary)] min-h-screen selection:bg-[var(--color-brand)] selection:text-white`}
       >
-        <ThemeProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <ToastProvider>
             {children}
-          </AuthProvider>
-        </ThemeProvider>
+          </ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );
 }
+

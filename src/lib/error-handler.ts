@@ -1,4 +1,9 @@
-// Error handling utility for Supabase errors with user-friendly messages
+// Unified error handling for both client and server contexts
+import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
+import { ZodError } from "zod";
+
+// ─── Client-side error handling ──────────────────────────────────────────────
 
 export interface SupabaseError {
   code?: string;
@@ -48,9 +53,6 @@ export function getErrorMessage(error: unknown): string {
   }
 }
 
-/**
- * Log error details in development mode only
- */
 export function logError(context: string, error: unknown): void {
   if (process.env.NODE_ENV === 'development') {
     console.group(`🚨 Error in ${context}`);
@@ -58,4 +60,45 @@ export function logError(context: string, error: unknown): void {
     console.error("User-friendly message:", getErrorMessage(error));
     console.groupEnd();
   }
+}
+
+// ─── Server-side API error handling ──────────────────────────────────────────
+export type CommonApiError = { error: string; details?: unknown };
+
+export function handleApiError<T = CommonApiError>(
+  error: unknown,
+  context: string
+): NextResponse<T | CommonApiError> {
+  if (error instanceof ZodError) {
+    logger.warn(`[${context}] Validation error:`, error.flatten());
+    return NextResponse.json(
+      { error: "Invalid request", details: error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  if (error instanceof Error) {
+    logger.error(`[${context}] Error:`, error.message);
+    return NextResponse.json(
+      { error: "Internal server error", details: error.message },
+      { status: 500 }
+    );
+  }
+
+  logger.error(`[${context}] Unknown error:`, error);
+  return NextResponse.json(
+    { error: "Internal server error", details: String(error) },
+    { status: 500 }
+  );
+}
+
+export function validationError<T = CommonApiError>(details: unknown): NextResponse<T | CommonApiError> {
+  return NextResponse.json(
+    { error: "Invalid request", details },
+    { status: 400 }
+  );
+}
+
+export function serviceUnavailable<T = CommonApiError>(message: string): NextResponse<T | CommonApiError> {
+  return NextResponse.json({ error: message }, { status: 503 });
 }

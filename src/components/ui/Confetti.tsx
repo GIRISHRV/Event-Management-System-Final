@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface ConfettiPiece {
   id: number;
@@ -18,9 +18,9 @@ interface ConfettiProps {
 }
 
 const COLORS = [
-  "#22c55e", // green-500
-  "#4ade80", // green-400
-  "#86efac", // green-300
+  "#3b82f6", // blue-500
+  "#60a5fa", // blue-400
+  "#93c5fd", // blue-300
   "#f97316", // orange-500
   "#fb923c", // orange-400
   "#fbbf24", // amber-400
@@ -30,7 +30,6 @@ const COLORS = [
   "#ffffff", // white
 ];
 
-// Generate pieces - called outside of render
 function generatePieces(count: number): ConfettiPiece[] {
   const pieces: ConfettiPiece[] = [];
   for (let i = 0; i < count; i++) {
@@ -48,7 +47,6 @@ function generatePieces(count: number): ConfettiPiece[] {
   return pieces;
 }
 
-// Pure render component
 function ConfettiDisplay({ pieces }: ConfettiProps) {
   if (pieces.length === 0) return null;
 
@@ -75,17 +73,25 @@ function ConfettiDisplay({ pieces }: ConfettiProps) {
   );
 }
 
-// Hook to trigger confetti - manages state and generation
+/** Hook to trigger confetti — timeout stored in ref to prevent setState-on-unmounted-component. */
 export function useConfetti() {
   const [pieces, setPieces] = useState<ConfettiPiece[]>([]);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const triggerConfetti = useCallback(() => {
-    // Generate pieces in event handler (not in effect or render)
     const newPieces = generatePieces(60);
     setPieces(newPieces);
-    
-    // Clear after animation completes
-    setTimeout(() => {
+
+    // Clear any existing timer before setting a new one
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
       setPieces([]);
     }, 3500);
   }, []);
