@@ -1,6 +1,6 @@
 # EventMS
 
-A full-stack event management platform built with Next.js 16, React 19, and Supabase. EventMS serves three distinct user roles — customer/organizer, vendor, and admin — and integrates five ML algorithms for smart recommendations, budget optimization, attendance forecasting, and community detection, alongside an AI-powered event chatbot.
+A full-stack event management platform built with Next.js, React 19, and Supabase. EventMS serves three distinct user roles — customer/organizer, vendor, and admin — and integrates five ML algorithms for smart recommendations, budget optimization, attendance forecasting, and community detection, alongside an AI-powered event chatbot.
 
 ---
 
@@ -16,7 +16,7 @@ A full-stack event management platform built with Next.js 16, React 19, and Supa
 - **Smart Budget Planner** — MOEA/D-DRA-NEF algorithm generates Pareto-optimal vendor bundles within your budget
 - **Attendance Forecast** — iTransformer model predicts attendance trends for your events
 - **Community Filter** — GAT+K-Means community detection groups similar events and users
-- **AI Chatbot** — Context-aware event assistant powered by HuggingFace LLM and Gemini
+- **AI Chatbot** — Context-aware event assistant powered by HuggingFace LLM
 
 ### Vendor
 - **Service Listings** — Create and manage service offerings with pricing, category, and images
@@ -90,10 +90,9 @@ Copy `.env.example` to `.env.local` and set the following:
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key — RLS policies enforce access control |
 | `HF_TOKEN` | Yes | HuggingFace API token for the AI chatbot LLM (server-side only) |
 | `HF_MODEL` | Yes | HuggingFace model ID, e.g. `meta-llama/Llama-3.3-70B-Instruct` (server-side only) |
-| `GEMINI_API_KEY` | Yes | Google Gemini API key for web-search-augmented chat (server-side only) |
 | `NEXT_PUBLIC_SITE_URL` | No | Base URL of the deployment, e.g. `http://localhost:3000` |
 
-> `HF_TOKEN`, `HF_MODEL`, and `GEMINI_API_KEY` must never use the `NEXT_PUBLIC_` prefix — they are server-side only and must not be exposed to the browser.
+> `HF_TOKEN` and `HF_MODEL` must never use the `NEXT_PUBLIC_` prefix — they are server-side only and must not be exposed to the browser.
 
 ---
 
@@ -133,11 +132,11 @@ eventms/
 
 | Layer | Technology | Version |
 |---|---|---|
-| Framework | Next.js | 16.0.3 |
+| Framework | Next.js | ^16.2.1 |
 | UI Library | React / React DOM | 19.2.0 |
 | Database / Auth / Storage | Supabase (`@supabase/supabase-js`) | ^2.81.1 |
 | Supabase SSR client | `@supabase/ssr` | ^0.8.0 |
-| Styling | Tailwind CSS | ^4 |
+| Styling | Tailwind CSS v4 | ^4 |
 | Schema validation | Zod | ^4.1.13 |
 | Form management | React Hook Form | ^7.67.0 |
 | Client-side data fetching | SWR | ^2.3.7 |
