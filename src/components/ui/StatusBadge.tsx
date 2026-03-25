@@ -1,5 +1,5 @@
 import { cn } from "@/lib/cn";
-import { Badge } from "./Badge";
+import { Badge } from "./badge";
 import { EVENT_STATUS, BOOKING_STATUS } from "@/lib/constants";
 
 export type StatusType = "default" | "success" | "warning" | "danger" | "secondary";

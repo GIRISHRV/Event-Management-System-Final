@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { ndcgAtK, precisionAtK, mae, rmse, mape } from "@/lib/algorithms/shared/evaluation";
+import { ndcgAtK, precisionAtK, mrrAtK, hitRateAtK, mae, rmse, mape } from "@/lib/algorithms/shared/evaluation";
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,24 +49,33 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // ── Pass 1: Collect predictions first ───────────────────────────────────────
     // By fetching predictions before ground truth, we only evaluate users
     // that simulate actually ran for. This guarantees the two sets match.
-    const { data: algoResults } = await supabase
+    const { data: algoResults } = await adminSupabase
       .from("algorithm_results")
-      .select("user_id, output_data, created_at, input_data")
-      .eq("algorithm_type", "xsimgcl")
+      .select("user_id, algorithm_type, output_data, created_at, input_data")  // ← add algorithm_type
+      .in("algorithm_type", ["xsimgcl", "gnn-cf"])
       .order("created_at", { ascending: false });
 
-    type PredictionRow = { user_id: string; output_data: { recommendations?: { eventId: string }[]; coldStart?: boolean }; input_data?: { interactionCount?: number }; created_at: string };
-    const predictions = new Map<string, PredictionRow>();
-    for (const row of algoResults || []) {
-      if (!predictions.has(row.user_id)) {
-        predictions.set(row.user_id, row as unknown as PredictionRow);
+    type PredictionRow = { user_id: string; algorithm_type: string; output_data: { recommendations?: { eventId: string }[]; coldStart?: boolean }; input_data?: { interactionCount?: number }; created_at: string };
+    const xsimgclPredictions = new Map<string, PredictionRow>();
+    const gnnCfPredictions = new Map<string, PredictionRow>();
+
+    for (const row of (algoResults || []) as unknown as PredictionRow[]) {
+      if (row.algorithm_type === "xsimgcl" && !xsimgclPredictions.has(row.user_id)) {
+        xsimgclPredictions.set(row.user_id, row);
+      } else if (row.algorithm_type === "gnn-cf" && !gnnCfPredictions.has(row.user_id)) {
+        gnnCfPredictions.set(row.user_id, row);
       }
     }
 
-    console.log(`[EVAL] Found ${algoResults?.length || 0} xsimgcl results → ${predictions.size} unique users`);
+    console.log(`[EVAL] Found ${algoResults?.length || 0} results → ${xsimgclPredictions.size} xsimgcl users, ${gnnCfPredictions.size} gnn-cf users`);
 
     // ── Pass 2: Build ground truth — only for users with predictions ──────────
     //
@@ -75,7 +84,7 @@ export async function GET(request: NextRequest) {
     // We only compute this for users who have saved predictions, so the
     // two populations are guaranteed to match.
 
-    const { data: bookings } = await supabase
+    const { data: bookings } = await adminSupabase
       .from("bookings")
       .select("user_id, event_id, created_at")
       .eq("status", "confirmed")
@@ -100,8 +109,8 @@ export async function GET(request: NextRequest) {
     const userTestEvents = new Map<string, string[]>();
 
     for (const b of allBookings) {
-      // Only process users that have predictions — skip everyone else
-      if (!predictions.has(b.user_id)) continue;
+      // Only process users that have some prediction
+      if (!xsimgclPredictions.has(b.user_id) && !gnnCfPredictions.has(b.user_id)) continue;
 
       const t = new Date(b.created_at).getTime();
       if (t <= cutoffTime) {
@@ -123,99 +132,85 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[EVAL] Ground truth for ${groundTruth.size} users (from ${predictions.size} with predictions)`);
+    console.log(`[EVAL] Ground truth for ${groundTruth.size} users (from users with predictions)`);
 
     // ── Pass 3: Compute metrics ───────────────────────────────────────────────
     const { data: candidateEvents } = await supabase.from("events").select("id");
     const allEventIds = (candidateEvents || []).map(e => e.id);
 
-    let sumNdcg = 0;
-    let sumPrec = 0;
-    let sumNdcgCold = 0;
-    let coldCount = 0;
-    let sumNdcgBase = 0;
-    let sumPrecBase = 0;
-    let sumNdcgColdBase = 0;
-    let evalCount = 0;
+    const calculateMetrics = (predsMap: Map<string, PredictionRow>) => {
+      let sumNdcg = 0;
+      let sumPrec = 0;
+      let sumMrr = 0;
+      let sumHitRate = 0;
+      let sumNdcgBase = 0;
+      let sumPrecBase = 0;
+      let count = 0;
 
-    // ── Debug: log first 3 users to diagnose zero NDCG ─────────────────────────
-    let debugCount = 0;
+      for (const [userId, gt] of groundTruth.entries()) {
+        const predRow = predsMap.get(userId);
+        if (!predRow || !predRow.output_data?.recommendations) continue;
 
-    for (const [userId, gt] of groundTruth.entries()) {
-      const predRow = predictions.get(userId);
-      if (!predRow || !predRow.output_data?.recommendations) continue;
+        const recs = predRow.output_data.recommendations.map((r: { eventId: string }) => r.eventId);
+        const ndcg = ndcgAtK(recs, gt, 10);
+        const prec = precisionAtK(recs, gt, 10);
+        const mrr = mrrAtK(recs, gt, 10);
+        const hr = hitRateAtK(recs, gt, 10);
 
-      // Do NOT filter recs by trainSet here.
-      // Anti-leakage is already handled at ground truth construction:
-      // cleanGt already excludes test events that were also in training.
-      // Filtering recs by trainSet here incorrectly removes legitimate hits
-      // when a ground truth event also appears in the user's training history.
-      const recs = predRow.output_data.recommendations
-        .map((r: { eventId: string }) => r.eventId);
+        const hitProbability = gt.length / Math.max(allEventIds.length, 1);
+        const precBase = hitProbability;
+        let idcg = 0;
+        for (let i = 0; i < Math.min(gt.length, 10); i++) {
+          idcg += 1 / Math.log2(i + 2);
+        }
+        let expectedDcg = 0;
+        for (let i = 0; i < 10; i++) {
+          expectedDcg += hitProbability / Math.log2(i + 2);
+        }
+        const ndcgBase = idcg > 0 ? expectedDcg / idcg : 0;
 
-      // Debug: log first 3 users
-      if (debugCount < 3) {
-        const hits = recs.filter((id: string) => gt.includes(id));
-        console.log(`[EVAL-DEBUG] User ${userId.slice(0, 8)}: gt=${gt.map((id: string) => id.slice(0, 8)).join(',')} | top3recs=${recs.slice(0, 3).map((id: string) => id.slice(0, 8)).join(',')} | hits=${hits.length}`);
-        debugCount++;
+        sumNdcg += ndcg;
+        sumPrec += prec;
+        sumMrr += mrr;
+        sumHitRate += hr;
+        sumNdcgBase += ndcgBase;
+        sumPrecBase += precBase;
+        count++;
       }
 
-      const isColdStart =
-        predRow.output_data?.coldStart ?? ((predRow.input_data?.interactionCount ?? 0) < 3);
+      return {
+        count,
+        ndcg: count > 0 ? parseFloat((sumNdcg / count).toFixed(4)) : 0,
+        precision: count > 0 ? parseFloat((sumPrec / count).toFixed(4)) : 0,
+        mrr: count > 0 ? parseFloat((sumMrr / count).toFixed(4)) : 0,
+        hitRate: count > 0 ? parseFloat((sumHitRate / count).toFixed(4)) : 0,
+        baselineNdcg: count > 0 ? parseFloat((sumNdcgBase / count).toFixed(4)) : 0,
+        baselinePrecision: count > 0 ? parseFloat((sumPrecBase / count).toFixed(4)) : 0,
+      };
+    };
 
-      const ndcg = ndcgAtK(recs, gt, 10);
-      const prec = precisionAtK(recs, gt, 10);
-
-      // Theoretical random baseline
-      const hitProbability = gt.length / Math.max(allEventIds.length, 1);
-      const precBase = hitProbability;
-
-      let idcg = 0;
-      for (let i = 0; i < Math.min(gt.length, 10); i++) {
-        idcg += 1 / Math.log2(i + 2);
-      }
-      let expectedDcg = 0;
-      for (let i = 0; i < 10; i++) {
-        expectedDcg += hitProbability / Math.log2(i + 2);
-      }
-      const ndcgBase = idcg > 0 ? expectedDcg / idcg : 0;
-
-      sumNdcg += ndcg;
-      sumPrec += prec;
-      sumNdcgBase += ndcgBase;
-      sumPrecBase += precBase;
-
-      if (isColdStart) {
-        sumNdcgCold += ndcg;
-        sumNdcgColdBase += ndcgBase;
-        coldCount++;
-      }
-
-      evalCount++;
-    }
+    const xsimgclMetrics = calculateMetrics(xsimgclPredictions);
+    const gnnCfMetrics = calculateMetrics(gnnCfPredictions);
 
     const metrics = {
-      usersEvaluated: evalCount,
+      usersEvaluated: xsimgclMetrics.count + gnnCfMetrics.count,
       meanGroundTruthSize:
         groundTruth.size > 0
           ? parseFloat(
-            (
-              [...groundTruth.values()].reduce((s, gt) => s + gt.length, 0) /
-              groundTruth.size
-            ).toFixed(2)
+            ([...groundTruth.values()].reduce((s, gt) => s + gt.length, 0) / groundTruth.size).toFixed(2)
           )
           : 0,
-      meanNdcg10: evalCount > 0 ? parseFloat((sumNdcg / evalCount).toFixed(4)) : 0,
-      meanPrecision10: evalCount > 0 ? parseFloat((sumPrec / evalCount).toFixed(4)) : 0,
-      meanNdcg10ColdStart:
-        coldCount > 0 ? parseFloat((sumNdcgCold / coldCount).toFixed(4)) : 0,
-      baselineNdcg10:
-        evalCount > 0 ? parseFloat((sumNdcgBase / evalCount).toFixed(4)) : 0,
-      baselinePrecision10:
-        evalCount > 0 ? parseFloat((sumPrecBase / evalCount).toFixed(4)) : 0,
-      baselineNdcg10ColdStart:
-        coldCount > 0 ? parseFloat((sumNdcgColdBase / coldCount).toFixed(4)) : 0,
-      // Evaluation methodology note for paper
+
+      // XSimGCL (Warm)
+      xsimgcl: xsimgclMetrics,
+
+      // GNN-CF (Cold Start)
+      gnncf: gnnCfMetrics,
+
+      // Blended (for backwards compat)
+      meanNdcg10: parseFloat(((xsimgclMetrics.ndcg * xsimgclMetrics.count + gnnCfMetrics.ndcg * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
+      baselineNdcg10: parseFloat(((xsimgclMetrics.baselineNdcg * xsimgclMetrics.count + gnnCfMetrics.baselineNdcg * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
+
       evaluationMethod: "global_temporal_cutoff_70pct",
       cutoffTimestamp: new Date(cutoffTime).toISOString(),
       forecasting: { mae: 0, rmse: 0, mape: 0, baselineMae: 0, baselineRmse: 0 },
@@ -225,7 +220,8 @@ export async function GET(request: NextRequest) {
     try {
       const { data: allForecasts } = await supabase
         .from("attendance_forecasts")
-        .select("*");
+        .select("*")
+        .order("forecast_date", { ascending: true });
 
       if (allForecasts && allForecasts.length > 0) {
         const { data: allBookingsForForecast } = await supabase
@@ -262,12 +258,55 @@ export async function GET(request: NextRequest) {
         }
 
         if (actuals.length > 0) {
+          // Debug MAPE
+          console.log(`[EVAL-MAPE] Sample Actuals (first 5): ${actuals.slice(0, 5).join(', ')}`);
+          console.log(`[EVAL-MAPE] Sample Preds   (first 5): ${preds.slice(0, 5).map(p => p.toFixed(2)).join(', ')}`);
+
           metrics.forecasting.mae = parseFloat(mae(actuals, preds).toFixed(4));
           metrics.forecasting.rmse = parseFloat(rmse(actuals, preds).toFixed(4));
           metrics.forecasting.mape = parseFloat(mape(actuals, preds).toFixed(4));
           metrics.forecasting.baselineMae = parseFloat(mae(actuals, basePreds).toFixed(4));
           metrics.forecasting.baselineRmse = parseFloat(rmse(actuals, basePreds).toFixed(4));
         }
+
+        // ── Grab a sample for the UI Chart ──────────────────────────────────────
+        const sampleEventId = allForecasts[0].event_id;
+        const sampleForecasts = allForecasts.filter(f => f.event_id === sampleEventId);
+
+        // Generate last 14 days of historical data for the sample event
+        const sampleHistorical: any[] = [];
+        const firstForecastDate = new Date(sampleForecasts[0].forecast_date).getTime();
+
+        for (let i = 14; i > 0; i--) {
+          const d = new Date(firstForecastDate - i * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const actualH = bookingsByEventDate.get(`${sampleEventId}_${d}`) || 0;
+
+          sampleHistorical.push({
+            name: d,
+            count: actualH,
+            isForecast: false
+          });
+        }
+
+        const samplePredictions: any[] = sampleForecasts.map(f => ({
+          name: new Date(f.forecast_date).toISOString().split("T")[0],
+          predicted: Math.round(f.predicted_attendance),
+          isForecast: true
+        }));
+
+        // Seamless connection: Prepend the exact last historical coordinate 
+        // to the prediction array so the Recharts Area begins exactly where history ends.
+        if (sampleHistorical.length > 0 && samplePredictions.length > 0) {
+          const lastH = sampleHistorical[sampleHistorical.length - 1];
+          samplePredictions.unshift({
+            name: lastH.name,
+            predicted: lastH.count,
+            isForecast: true
+          });
+        }
+
+        (metrics.forecasting as any).historicalData = sampleHistorical;
+        (metrics.forecasting as any).predictions = samplePredictions;
       }
     } catch (e) {
       console.warn("[EVAL] Forecasting metrics skipped:", e);

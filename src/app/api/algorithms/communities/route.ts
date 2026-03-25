@@ -36,12 +36,17 @@ export async function GET(request: NextRequest) {
       global: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
     });
 
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // ── Parse query params ────────────────────────────────────────────────────
     const { searchParams } = new URL(request.url);
     const eventId = searchParams.get("eventId");
 
     // ── Check cache in event_communities table ────────────────────────────────
-    const { data: cachedCommunities } = await supabase
+    const { data: cachedCommunities } = await adminSupabase
       .from("event_communities")
       .select("community_id, label, event_ids, size, density, modularity, characteristics, created_at")
       .gte("created_at", new Date(Date.now() - CACHE_TTL_MS).toISOString())
@@ -137,8 +142,13 @@ export async function POST(request: NextRequest) {
       global: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
     });
 
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // ── Check for optimistic lock ─────────────────────────────────────────────
-    const { data: lockRow } = await supabase
+    const { data: lockRow } = await adminSupabase
       .from("algorithm_results")
       .select("created_at")
       .eq("algorithm_type", "gat-kmeans-lock")
@@ -158,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     // Acquire lock
     const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from("algorithm_results").insert({
+    await adminSupabase.from("algorithm_results").insert({
       algorithm_type: "gat-kmeans-lock",
       user_id: user?.id,
       input_data: {},
@@ -185,7 +195,7 @@ export async function POST(request: NextRequest) {
     const algo = new GATKMeans();
 
     // Fetch events to pass as input (validate() needs events list)
-    const { data: events } = await supabase
+    const { data: events } = await adminSupabase
       .from("events")
       .select("id, tags, venue_city")
       .eq("visibility_type", "public")
@@ -215,7 +225,21 @@ export async function POST(request: NextRequest) {
       geographicDecay,
     });
 
-    const communities = result.communities;
+    // ── Calculate top cities per community ──
+    const idToCity = new Map(eventInput.map(e => [e.id, e.venueCity]));
+    const communities: EventCommunity[] = result.communities.map(c => {
+      const cityCounts: Record<string, number> = {};
+      for (const id of c.eventIds) {
+        const city = idToCity.get(id);
+        if (city) cityCounts[city] = (cityCounts[city] || 0) + 1;
+      }
+      const topCities = Object.entries(cityCounts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([city, count]) => ({ city, count }));
+      
+      return { ...c, topCities };
+    });
 
     // ── Persist to event_communities ──────────────────────────────────────
     if (communities.length > 0) {
@@ -225,7 +249,7 @@ export async function POST(request: NextRequest) {
         .delete()
         .lt("created_at", new Date(Date.now() - CACHE_TTL_MS).toISOString());
 
-      await supabase.from("event_communities").insert(
+      await adminSupabase.from("event_communities").insert(
         communities.map((c) => ({
           community_id: c.communityId,
           label: c.label,
@@ -238,9 +262,9 @@ export async function POST(request: NextRequest) {
       );
 
       // Log to algorithm_results for paper (this implicitly replaces the lock if we delete it or we just add a new row)
-      await supabase.from("algorithm_results").delete().eq("algorithm_type", "gat-kmeans-lock");
+      await adminSupabase.from("algorithm_results").delete().eq("algorithm_type", "gat-kmeans-lock");
       
-      await supabase.from("algorithm_results").insert({
+      await adminSupabase.from("algorithm_results").insert({
         algorithm_type: "gat-kmeans",
         user_id: user?.id,
         input_data: { numEvents: eventInput.length, geographicDecay },

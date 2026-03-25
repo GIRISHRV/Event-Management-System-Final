@@ -3,8 +3,8 @@ import { Trash2, Upload, ImageOff, Image as ImageIcon, Video } from 'lucide-reac
 import { type UseFormReturn } from 'react-hook-form';
 import { type EventFormData } from '@/schemas/event.schema';
 import Image from 'next/image';
-import { Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { storageService } from "@/services/supabase/storage";
 import { useToast } from "@/hooks/useToast";
 import { getErrorMessage } from "@/lib/errors";

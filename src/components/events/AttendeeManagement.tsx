@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import { Check, X, User, Trash2, CheckCircle2, XCircle, Users } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 
 interface Attendee {

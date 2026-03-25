@@ -2,15 +2,6 @@
 // iTransformer: Inverted Transformer for Attendance Forecasting
 //
 // Paper: Liu et al., ICLR 2024 — https://arxiv.org/abs/2310.06625
-//
-// Pipeline:
-//   1. Fetch last `lookback` days of daily bookings from Supabase
-//   2. Engineer 5 feature variables per day
-//   3. Embed each variable's time series as a single token (inverted = variable-as-token)
-//   4. Run L encoder layers of multi-head self-attention over variable tokens
-//   5. Project variable embeddings → horizon-length forecast
-//   6. Denormalise + compute prediction intervals
-//   7. Persist to attendance_forecasts table
 
 import type {
   AlgorithmBase,
@@ -20,10 +11,6 @@ import type {
   AttendancePrediction,
   ValidationResult,
 } from "../shared/types";
-// We extend ForecastInput inline to avoid changing shared types for now
-export interface ExtendedForecastInput extends ForecastInput {
-  supabaseClient?: SupabaseClient;
-}
 import {
   fetchDailyBookings,
   fetchEventMeta,
@@ -32,16 +19,25 @@ import {
   computePredictionIntervals,
   detectTrend,
   denormalise,
+  NUM_VARIABLES,
 } from "./forecast";
 import {
   embedVariable,
   encoderLayer,
   projectToForecast,
+  generateInitialWeights,
   DEFAULT_ITRANSFORMER_CONFIG,
   type iTransformerConfig,
+  type ITransformerWeights,
 } from "./attention";
 import { supabase as defaultSupabase } from "@/services/supabase/client";
 import { SupabaseClient } from "@supabase/supabase-js";
+
+// We extend ForecastInput inline to avoid changing shared types for now
+export interface ExtendedForecastInput extends ForecastInput {
+  supabaseClient?: SupabaseClient;
+  anchorDate?: Date;
+}
 
 export class iTransformer
   implements AlgorithmBase<ForecastInput, ForecastOutput>
@@ -50,6 +46,7 @@ export class iTransformer
   readonly version = "1.0.0";
 
   private config: iTransformerConfig;
+  private weights: ITransformerWeights | null = null;
 
   private metrics: AlgorithmMetrics = {
     executionTimeMs: 0,
@@ -61,6 +58,84 @@ export class iTransformer
 
   constructor(config: Partial<iTransformerConfig> = {}) {
     this.config = { ...DEFAULT_ITRANSFORMER_CONFIG, ...config };
+  }
+
+  // ─── Weight Management ───────────────────────────────────────────────────────
+
+  private async loadWeights(supabase: SupabaseClient): Promise<ITransformerWeights> {
+    if (this.weights) return this.weights;
+
+    const { data, error } = await supabase
+      .from("algorithm_results")
+      .select("output_data")
+      .eq("algorithm_type", "itransformer_weights")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      console.log("[iTransformer] No weights found, generating initial...");
+      this.weights = generateInitialWeights(NUM_VARIABLES, this.config);
+      await this.saveWeights(supabase);
+      return this.weights;
+    }
+
+    this.weights = data.output_data as unknown as ITransformerWeights;
+    return this.weights;
+  }
+
+  private async saveWeights(supabase: SupabaseClient): Promise<void> {
+    if (!this.weights) return;
+
+    await supabase.from("algorithm_results").insert({
+      algorithm_type: "itransformer_weights",
+      output_data: this.weights as any,
+      execution_time_ms: 0,
+    });
+  }
+
+  /**
+   * Extremely simplified training nudge based on prediction error.
+   */
+  private async trainOnData(
+    tokens: number[][],
+    paddedMatrix: number[][],
+    actualNextDay: number,
+    lastCumulative: number,
+    maxAttendees: number | null,
+    supabase: SupabaseClient
+  ) {
+    if (!this.weights) return;
+
+    const varImportance = [0.30, 0.40, 0.15, 0.075, 0.075];
+    const normForecast = projectToForecast(tokens, 1, varImportance, this.weights.W_out);
+    const pred = denormalise(normForecast, lastCumulative, maxAttendees)[0];
+
+    const error = actualNextDay - pred;
+    const learningRate = 0.005; 
+    const lookback = this.config.lookback;
+
+    // 1. Nudge W_out (Output Projector)
+    if (Math.abs(error) > 0.01) {
+      for (let v = 0; v < NUM_VARIABLES; v++) {
+        for (let d = 0; d < this.config.dModel; d++) {
+          this.weights.W_out[v][0][d] += error * tokens[v][d] * learningRate * varImportance[v];
+        }
+      }
+
+      // 2. Nudge W_proj (Temporal Projector)
+      // error * tokens[v][d] * series[v][t]
+      for (let v = 0; v < NUM_VARIABLES; v++) {
+        for (let d = 0; d < this.config.dModel; d++) {
+          for (let t = 0; t < lookback; t++) {
+            this.weights.W_proj[v][d][t] +=
+              error * tokens[v][d] * (paddedMatrix[v]?.[t] || 0) * learningRate * varImportance[v];
+          }
+        }
+      }
+      
+      await this.saveWeights(supabase);
+    }
   }
 
   // ─── Validation ──────────────────────────────────────────────────────────────
@@ -87,6 +162,8 @@ export class iTransformer
       throw new Error(`[iTransformer] Invalid input: ${validation.errors.join(", ")}`);
     }
 
+    const weights = await this.loadWeights(activeSupabase);
+
     const horizon = input.horizon ?? 7;
     const confidenceLevel = input.confidenceLevel ?? this.config.confidenceLevel;
     const lookback = this.config.lookback;
@@ -95,75 +172,66 @@ export class iTransformer
     const { startDate, maxAttendees } = await fetchEventMeta(input.eventId);
     const eventStartDate = new Date(startDate);
 
-    // ── Step 2: Fetch daily bookings for look-back window ─────────────────────
-    const today = new Date();
+    // ── Step 2: Fetch daily bookings ──────────────────────────────────────────
+    const today = input.anchorDate ? new Date(input.anchorDate) : new Date();
     today.setHours(0, 0, 0, 0);
 
     const windowEnd = new Date(today);
-    windowEnd.setDate(windowEnd.getDate() - 1); // yesterday
+    windowEnd.setDate(windowEnd.getDate() - 1);
 
     const windowStart = new Date(today);
     windowStart.setDate(windowStart.getDate() - lookback);
 
-    const dailyBookings = await fetchDailyBookings(
-      input.eventId,
-      windowStart,
-      windowEnd
-    );
-
+    const dailyBookings = await fetchDailyBookings(input.eventId, windowStart, windowEnd);
     this.metrics.inputSize = dailyBookings.size;
 
-    // ── Step 3: Build look-back feature signals ───────────────────────────────
-    const signals = buildLookbackWindow(
-      dailyBookings,
-      eventStartDate,
-      windowStart,
-      windowEnd
-    );
+    // ── Step 3: Build feature signals ────────────────────────────────────────
+    const signals = buildLookbackWindow(dailyBookings, eventStartDate, windowStart, windowEnd);
 
     const lastCumulative =
-      signals.length > 0
-        ? signals[signals.length - 1].cumulativeBookings
-        : 0;
+      signals.length > 0 ? signals[signals.length - 1].cumulativeBookings : 0;
 
-    // ── Step 4: Convert to variable matrix [NUM_VARIABLES × T] ───────────────
+    // ── Step 4: Convert to variable matrix ──────────────────────────────────
     const variableMatrix = signalsToVariableMatrix(signals);
-
-    // Pad or truncate each variable series to exactly `lookback` steps
     const paddedMatrix = variableMatrix.map(series => {
       if (series.length >= lookback) return series.slice(-lookback);
       return [...new Array(lookback - series.length).fill(0), ...series];
     });
 
-    // ── Step 5: Embed each variable as a single token (the "inverted" part) ──
+    // ── Step 5: Embed variables ─────────────────────────────────────────────
     let tokens = paddedMatrix.map((series, varIdx) =>
-      embedVariable(series, varIdx, this.config.dModel)
+      embedVariable(series, varIdx, weights.W_proj)
     );
 
-    // ── Step 6: Run iTransformer encoder layers ───────────────────────────────
+    // ── Step 6: Encoder layers ──────────────────────────────────────────────
     for (let l = 0; l < this.config.numLayers; l++) {
-      tokens = encoderLayer(tokens, this.config, l);
+      const layerWeights = {
+        W_q: weights.W_q[l],
+        W_k: weights.W_k[l],
+        W_v: weights.W_v[l],
+        W_ff1: weights.W_ff1[l],
+        W_ff2: weights.W_ff2[l],
+      };
+      tokens = encoderLayer(tokens, this.config, layerWeights);
     }
 
-    // ── Step 7: Variable importance weights ───────────────────────────────────
-    // Heuristic: cumulative_bookings (var 1) and daily_rsvps (var 0) are most
-    // predictive; days_to_event (var 2) is medium; seasonal signals (3,4) lower
     const varImportance = [0.30, 0.40, 0.15, 0.075, 0.075];
 
-    // ── Step 8: Project to horizon-length normalised forecast ─────────────────
-    const normForecast = projectToForecast(tokens, horizon, varImportance);
+    // ── Step 7: Project to forecast ─────────────────────────────────────────
+    const normForecast = projectToForecast(tokens, horizon, varImportance, weights.W_out);
 
-    // ── Step 9: Denormalise to real attendee counts ───────────────────────────
+    // ── Step 8: Denormalise ─────────────────────────────────────────────────
     const rawCounts = denormalise(normForecast, lastCumulative, maxAttendees);
 
-    // ── Step 10: Prediction intervals ─────────────────────────────────────────
-    const intervals = computePredictionIntervals(
-      rawCounts,
-      confidenceLevel,
-      maxAttendees
-    );
+    // ── Step 9: Intervals ───────────────────────────────────────────────────
+    const intervals = computePredictionIntervals(rawCounts, confidenceLevel, maxAttendees);
 
-    // ── Step 11: Build date labels for forecast days ───────────────────────────
+    const actualToday = dailyBookings.get(today.toISOString().split("T")[0]) ?? 0;
+    if (actualToday > 0) { // Only train when there's real signal
+      await this.trainOnData(tokens, paddedMatrix, lastCumulative + actualToday, lastCumulative, maxAttendees, activeSupabase);
+    }
+
+    // ── Step 11: Predictions ────────────────────────────────────────────────
     const forecastStart = new Date(today);
     const predictions: AttendancePrediction[] = rawCounts.map((count, i) => {
       const forecastDate = new Date(forecastStart);
@@ -171,18 +239,18 @@ export class iTransformer
       return {
         date: forecastDate.toISOString().split("T")[0],
         predictedAttendance: Math.round(count),
-        lowerBound: intervals[i].lower,
-        upperBound: intervals[i].upper,
+        lowerBound: intervals[i]?.lower ?? Math.round(count * 0.9),
+        upperBound: intervals[i]?.upper ?? Math.round(count * 1.1),
         confidence: confidenceLevel,
       };
     });
 
     const trend = detectTrend(rawCounts);
     const recommendedCapacity = Math.ceil(
-      Math.max(...predictions.map(p => p.upperBound)) * 1.1 // 10% safety buffer
+      Math.max(...predictions.map(p => p.upperBound)) * 1.1
     );
 
-    // ── Step 12: Persist to attendance_forecasts ──────────────────────────────
+    // ── Step 12: Persist ─────────────────────────────────────────────────────
     await this.persistForecasts(input.eventId, predictions, trend, activeSupabase);
 
     this.metrics = {
@@ -202,8 +270,6 @@ export class iTransformer
     };
   }
 
-  // ─── Persist ─────────────────────────────────────────────────────────────────
-
   private async persistForecasts(
     eventId: string,
     predictions: AttendancePrediction[],
@@ -221,17 +287,10 @@ export class iTransformer
       model_version: this.version,
     }));
 
-    // Upsert — unique constraint on (event_id, forecast_date)
-    const { error } = await supabaseClient
+    await supabaseClient
       .from("attendance_forecasts")
       .upsert(rows, { onConflict: "event_id,forecast_date" });
-      
-    if (error) {
-      console.error("[iTransformer] Failed to upsert forecasts:", error);
-    }
   }
-
-  // ─── Metrics ─────────────────────────────────────────────────────────────────
 
   getMetrics(): AlgorithmMetrics {
     return this.metrics;

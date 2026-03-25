@@ -10,7 +10,7 @@ import { VendorServiceRow } from "@/schemas/vendor.schema";
 import { VendorServiceCard } from "../vendor/VendorServiceCard";
 import { Drawer } from "../ui/Drawer";
 import { Search, SlidersHorizontal, Loader2 } from "lucide-react";
-import { Button } from "../ui/Button";
+import { Button } from "../ui/button";
 
 export function VendorMarketplace() {
   const { marketplaceItems: vendors, isLoading } = useMarketplace({ page: 1, limit: 50 });

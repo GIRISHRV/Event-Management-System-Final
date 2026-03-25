@@ -98,15 +98,34 @@ export async function POST(request: NextRequest) {
       const trend = cached[0]?.trend ?? "stable";
       const maxPredicted = Math.max(...cached.map(r => r.upper_bound));
 
+      // ── Fetch historical data for comparison ──
+      const { data: history } = await supabase
+        .from("bookings")
+        .select("created_at")
+        .eq("event_id", eventId)
+        .eq("status", "confirmed")
+        .order("created_at", { ascending: true });
+
+      const historyMap = new Map<string, number>();
+      (history ?? []).forEach(b => {
+        const d = new Date(b.created_at).toISOString().split('T')[0];
+        historyMap.set(d, (historyMap.get(d) || 0) + 1);
+      });
+      const historicalData = Array.from(historyMap.entries())
+        .map(([date, count]) => ({ date, count }))
+        .slice(-14);
+
       return NextResponse.json({
         success: true,
         eventId,
+        historicalData,
         predictions: cached.map(r => ({
-          date: r.forecast_date,
-          predictedAttendance: r.predicted_attendance,
+          name: r.forecast_date,
+          predicted: Math.round(r.predicted_attendance),
           lowerBound: r.lower_bound,
           upperBound: r.upper_bound,
           confidence: r.confidence,
+          isForecast: true,
         })),
         trend,
         recommendedCapacity: Math.ceil(maxPredicted * 1.1),
@@ -140,9 +159,28 @@ export async function POST(request: NextRequest) {
       `[Forecast] Completed in ${Date.now() - startTime}ms, trend=${result.trend}`
     );
 
+    // ── Fetch historical data for comparison ──
+    const { data: history } = await supabase
+      .from("bookings")
+      .select("created_at")
+      .eq("event_id", eventId)
+      .eq("status", "confirmed")
+      .order("created_at", { ascending: true });
+
+    // Aggregate daily confirmed bookings (cumulative or daily)
+    const historyMap = new Map<string, number>();
+    (history ?? []).forEach(b => {
+      const d = new Date(b.created_at).toISOString().split('T')[0];
+      historyMap.set(d, (historyMap.get(d) || 0) + 1);
+    });
+    const historicalData = Array.from(historyMap.entries())
+      .map(([date, count]) => ({ date, count }))
+      .slice(-14); // Last 14 days
+
     return NextResponse.json({
       success: true,
       eventId,
+      historicalData,
       predictions: result.predictions,
       trend: result.trend,
       recommendedCapacity: result.recommendedCapacity,

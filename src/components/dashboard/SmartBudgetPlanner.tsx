@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import { useAuth } from "@/context/AuthContext";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/services/supabase/client";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────

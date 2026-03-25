@@ -5,7 +5,7 @@ import { MessageCircle, X, Send, Bot, User, Loader2, Sparkles, Trash2 } from "lu
 import { useEventChat } from "@/hooks/useEventChat";
 import { MarkdownRenderer } from "@/components/chat/MarkdownRenderer";
 import { cn } from "@/lib/cn";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/services/supabase/client";
 import { generateContextualSuggestions } from "@/lib/algorithms/chatbot/context-suggestions";
 

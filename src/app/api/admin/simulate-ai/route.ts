@@ -46,8 +46,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // ── Step 1: Fetch all confirmed bookings ordered by time ──────────────────
-    const { data: allBookings } = await supabase
+    const { data: allBookings } = await adminSupabase
       .from("bookings")
       .select("user_id, event_id, created_at, status")
       .eq("status", "confirmed")
@@ -105,11 +110,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch profiles (no email filter — we want all real users with enough data)
-    const { data: testUsers } = await supabase
+    const { data: testUsers } = await adminSupabase
       .from("profiles")
       .select("id, email")
-      .in("id", eligibleUserIds)
-      .limit(50);
+      .in("id", eligibleUserIds);
 
     if (!testUsers || testUsers.length === 0) {
       return NextResponse.json({
@@ -135,10 +139,11 @@ export async function POST(request: NextRequest) {
         event_id: b.event_id,
         interaction_type: "confirmed",
         implicit_score: 1.0,
+        split: "train",
       }));
 
       try {
-        await supabase
+        await adminSupabase
           .from("user_interactions")
           .upsert(interactionRows, {
             onConflict: "user_id,event_id,interaction_type",
@@ -151,6 +156,7 @@ export async function POST(request: NextRequest) {
 
     // ── Step 5: Run XSimGCL for each user ─────────────────────────────────────
     let successCount = 0;
+    let sampleRecs: any[] = [];
 
     for (const testUser of testUsers) {
       try {
@@ -158,51 +164,59 @@ export async function POST(request: NextRequest) {
         const result = await algo.execute({
           userId: testUser.id,
           limit: 10,
-          supabaseClient: supabase,
-          evalMode: true,       // include all public events so past ground truth events are scoreable
-          cutoffDate: new Date(cutoffTime).toISOString(), // only use training-window bookings in graph
+          supabaseClient: adminSupabase,
+          evalMode: true,
+          cutoffDate: new Date(cutoffTime).toISOString(),
         } as Parameters<typeof algo.execute>[0]);
 
-        console.log(`[SIM] ${testUser.id}: ${result.recommendations.length} recommendations`);
-
         if (result.recommendations.length > 0) {
-          // Delete existing prediction for this user before inserting new one.
-          // This prevents the evaluator from reading stale pre-training predictions
-          // when it does ORDER BY created_at DESC — only one row per user exists.
-          await supabase
+          if (sampleRecs.length === 0) {
+            const { data: userTags } = await adminSupabase.from("user_interactions").select("events(tags)").eq("user_id", testUser.id);
+            const tagCounts = new Map<string, number>();
+            userTags?.forEach((row: any) => {
+              const evt = (Array.isArray(row.events) ? row.events[0] : row.events) as { tags?: string[] } | null;
+              const tags = evt?.tags || [];
+              tags.forEach((t: string) => tagCounts.set(t, (tagCounts.get(t) || 0) + 1));
+            });
+
+            const recIds = result.recommendations.map(r => r.eventId);
+            const { data: events } = await adminSupabase.from("events").select("id, tags").in("id", recIds);
+            const evtTagsMap = new Map((events || []).map(e => [e.id, e.tags || []]));
+
+            sampleRecs = result.recommendations.map(r => {
+              const tags = evtTagsMap.get(r.eventId) || [];
+              const sortedTags = [...tags].sort((a, b) => (tagCounts.get(b) || 0) - (tagCounts.get(a) || 0));
+              const bestTag = sortedTags[0];
+              return {
+                ...r,
+                reason: bestTag && tagCounts.get(bestTag) ? `Matched your interest in ${bestTag.toLowerCase()}` : "Recommended similarity"
+              };
+            }).slice(0, 3);
+          }
+
+          await adminSupabase
             .from("algorithm_results")
             .delete()
             .eq("user_id", testUser.id)
             .eq("algorithm_type", "xsimgcl");
 
-          const { error: insertErr } = await supabase
+          const { error: insertErr } = await adminSupabase
             .from("algorithm_results")
             .insert({
               user_id: testUser.id,
               algorithm_type: "xsimgcl",
-              input_data: {
-                userId: testUser.id,
-                limit: 10,
-                bookingCount: userBookingCount.get(testUser.id) ?? 0,
-                trainBookings: userTrainBookings.get(testUser.id)?.length ?? 0,
-              },
+              input_data: { userId: testUser.id, limit: 10 },
               output_data: {
                 recommendations: result.recommendations,
-                coldStart: (result as { coldStart?: boolean }).coldStart ?? false,
+                sampleRecommendations: sampleRecs,
               },
               execution_time_ms: result.metrics.executionTimeMs,
               version: "1.0.0",
             });
 
-          if (insertErr) {
-            console.error(`[SIM-ERROR] Insert failed for ${testUser.id}:`, insertErr);
-          } else {
-            successCount++;
-          }
+          if (!insertErr) successCount++;
         }
-      } catch (algoErr) {
-        console.error(`[SIM-CRITICAL] XSimGCL failed for ${testUser.id}:`, algoErr);
-      }
+      } catch (err) { console.error(err); }
     }
 
     // ── Step 6: iTransformer forecasts ────────────────────────────────────────
@@ -218,19 +232,22 @@ export async function POST(request: NextRequest) {
       .map(([id]) => id)
       .slice(0, 5);
 
-    let forecastSuccess = 0;
-    console.log(`[SIM] iTransformer for ${forecastTargets.length} events`);
-
+    let forecastSuccessCount = 0;
     for (const eventId of forecastTargets) {
       try {
+        // Backtest: evaluate on the last 7 days of known ground truth
+        const anchorDate = new Date();
+        anchorDate.setDate(anchorDate.getDate() - 7);
+
         const forecaster = new iTransformer({ horizon: 7 });
         const forecastResult = await forecaster.execute({
           eventId,
           horizon: 7,
-          supabaseClient: supabase,
-        });
+          supabaseClient: adminSupabase,
+          anchorDate
+        } as any);
 
-        await supabase.from("algorithm_results").insert({
+        await adminSupabase.from("algorithm_results").insert({
           user_id: testUsers[0]?.id || null,
           algorithm_type: "itransformer",
           input_data: { eventId, horizon: 7 },
@@ -242,21 +259,16 @@ export async function POST(request: NextRequest) {
           version: "1.0.0",
         });
 
-        forecastSuccess++;
-      } catch (err) {
-        console.error(`[SIM-ERROR] iTransformer failed for ${eventId}:`, err);
-      }
+        forecastSuccessCount++;
+      } catch (err) { console.error(err); }
     }
-
-    console.log(
-      `[SIM] Done. Predictions: ${successCount}/${testUsers.length}. Forecasts: ${forecastSuccess}.`
-    );
 
     return NextResponse.json({
       success: true,
       processed: successCount,
       total: testUsers.length,
-      forecasts: forecastSuccess,
+      forecasts: forecastSuccessCount,
+      sampleRecommendations: sampleRecs,
     });
   } catch (err: unknown) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Unknown error" }, { status: 500 });

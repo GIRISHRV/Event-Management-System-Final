@@ -178,6 +178,7 @@ export interface EventCommunity {
   density: number;
   modularity: number;
   characteristics: string[];
+  topCities?: Array<{ city: string; count: number }>;
 }
 
 export interface CommunityDetectionOutput {

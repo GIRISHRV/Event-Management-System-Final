@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useBookings } from "@/hooks/useBookings";
 import { useToast } from "@/hooks/useToast";
 import { useConfetti } from "@/components/ui/Confetti";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Loader2, CheckCircle2, Clock, XCircle, Sparkles } from "lucide-react";
 import { EventRecommendations } from "@/components/events/EventRecommendations";
 import { useMyEvents } from "@/hooks/useEvents";

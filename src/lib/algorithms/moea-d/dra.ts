@@ -96,54 +96,64 @@ export function updateUtilities(
 // ─── NEF Crossover ─────────────────────────────────────────────────────────────
 
 /**
- * NEF neighbourhood crossover:
- * Given parent solution at subproblem i and a random neighbour solution,
- * produces an offspring by uniform crossover of the selection vectors.
- * Then applies a small mutation (bit-flip) to escape local optima.
+ * NEF neighbourhood crossover for categorical encoding:
+ * Given parent selection vectors (category indices) and a random neighbour,
+ * produces an offspring by uniform crossover of the chosen indices.
  */
 export function nefCrossover(
   parent: Solution,
   neighbour: Solution,
-  vendors: VendorCandidate[],
+  categoryGroups: VendorCandidate[][],
   budget: number,
   mutationRate: number = 0.1
 ): Solution {
-  const n = vendors.length;
-  const childSelection = new Array(n).fill(false);
+  const n = categoryGroups.length;
+  const childSelection = new Array(n).fill(0);
 
-  // Uniform crossover
+  // Uniform crossover per category
   for (let i = 0; i < n; i++) {
     childSelection[i] = Math.random() < 0.5
       ? parent.selection[i]
       : neighbour.selection[i];
   }
 
-  // Mutation: flip each bit with probability mutationRate
+  // Mutation: pick a completely different random vendor for this category
   for (let i = 0; i < n; i++) {
     if (Math.random() < mutationRate) {
-      childSelection[i] = !childSelection[i];
+      childSelection[i] = Math.floor(Math.random() * categoryGroups[i].length);
     }
   }
 
-  // Repair: if over budget, remove cheapest-to-remove selected vendors
-  let cost = vendors.reduce((s, v, i) => childSelection[i] ? s + v.baseCost : s, 0);
+  const { objectives, feasible } = evaluate(childSelection, categoryGroups, budget);
+  let resSelection = childSelection;
+  let resObjectives = objectives;
+  let resFeasible = feasible;
 
-  if (cost > budget) {
-    // Sort selected vendors by cost descending — remove most expensive first
-    const selected = vendors
-      .map((v, i) => ({ v, i }))
-      .filter(x => childSelection[x.i])
-      .sort((a, b) => b.v.baseCost - a.v.baseCost);
+  // Repair: if over budget, greedily swap to cheaper vendors in the category
+  if (!resFeasible) {
+    const sortedCats = categoryGroups
+      .map((_, i) => i)
+      .sort((a, b) => {
+        const costA = categoryGroups[a][resSelection[a]].baseCost;
+        const costB = categoryGroups[b][resSelection[b]].baseCost;
+        return costB - costA;
+      });
 
-    for (const { i, v } of selected) {
-      if (cost <= budget) break;
-      childSelection[i] = false;
-      cost -= v.baseCost;
+    for (const catIdx of sortedCats) {
+      if (resFeasible) break;
+      const group = categoryGroups[catIdx];
+      let minIdx = 0;
+      for (let j = 1; j < group.length; j++) {
+        if (group[j].baseCost < group[minIdx].baseCost) minIdx = j;
+      }
+      resSelection[catIdx] = minIdx;
+      const result = evaluate(resSelection, categoryGroups, budget);
+      resObjectives = result.objectives;
+      resFeasible = result.feasible;
     }
   }
 
-  const { objectives, feasible } = evaluate(childSelection, vendors, budget);
-  return { selection: childSelection, objectives, feasible };
+  return { selection: resSelection, objectives: resObjectives, feasible: resFeasible };
 }
 
 // ─── Main MOEA/D-DRA-NEF Loop ─────────────────────────────────────────────────
@@ -167,17 +177,17 @@ export const DEFAULT_MOEAD_CONFIG: MOEADConfig = {
 };
 
 export function runMOEAD(
-  vendors: VendorCandidate[],
+  categoryGroups: VendorCandidate[][],
   budget: number,
   weightVectors: WeightVector[],
   config: MOEADConfig
 ): Solution[] {
   const N = weightVectors.length;
-  if (N === 0 || vendors.length === 0) return [];
+  if (N === 0 || categoryGroups.length === 0) return [];
 
   // Initialise population — one solution per subproblem
   const population: Solution[] = Array.from({ length: N }, () =>
-    randomFeasibleSolution(vendors, budget)
+    randomFeasibleSolution(categoryGroups, budget)
   );
 
   // Compute initial ideal + nadir
@@ -222,7 +232,7 @@ export function runMOEAD(
       const offspring = nefCrossover(
         population[i],
         population[neighbourIdx],
-        vendors,
+        categoryGroups,
         budget,
         config.mutationRate
       );

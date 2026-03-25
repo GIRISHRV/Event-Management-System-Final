@@ -231,11 +231,12 @@ export function denormalise(
 ): number[] {
   // Cap = max_attendees if set; otherwise estimate as 2× current total (min 20)
   const cap = maxAttendees ?? Math.max(lastCumulativeBookings * 2, 20);
+  const availableRoom = Math.max(0, cap - lastCumulativeBookings);
 
-  // Interpret each normalised value as a fraction of the expected capacity.
-  // Clamp to [lastKnown, cap] so values are monotonically non-decreasing
-  // and stay within real-world attendance bounds.
-  return normalisedForecast.map(v =>
-    Math.max(lastCumulativeBookings, Math.min(cap, Math.round(v * cap)))
-  );
+  // Use the normalised value to fill the available room above the current total.
+  // This ensures even small positive model outputs translate to real growth.
+  return normalisedForecast.map(v => {
+    const growth = v * availableRoom;
+    return Math.round(lastCumulativeBookings + Math.max(0, growth));
+  });
 }

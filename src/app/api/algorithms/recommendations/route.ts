@@ -24,7 +24,7 @@ const RecommendationRequestSchema = z.object({
 
 // ─── Cold Start Threshold ──────────────────────────────────────────────────────
 // If user has fewer than this many interactions, use GNN-CF instead of XSimGCL
-const COLD_START_THRESHOLD = 3;
+const COLD_START_THRESHOLD = 10;
 
 // ─── Route Handler ─────────────────────────────────────────────────────────────
 

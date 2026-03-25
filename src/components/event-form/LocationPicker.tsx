@@ -8,7 +8,7 @@ import 'leaflet/dist/leaflet.css';
 import { api } from '@/lib/api-client';
 import { Modal } from '@/components/ui/Modal';
 // import { Input } from '@/components/ui/Input';
-import { Button } from '@/components/ui/Button';
+import { Button } from '@/components/ui/button';
 
 // Fix for default markers in react-leaflet
 if (typeof window !== 'undefined') {

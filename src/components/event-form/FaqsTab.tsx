@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Plus, Trash2, HelpCircle, MessageCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form';
 import { type EventFormData } from '@/schemas/event.schema';
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 interface FaqsTabProps {
   form: UseFormReturn<EventFormData>;

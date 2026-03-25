@@ -3,8 +3,8 @@ import { type UseFormReturn } from "react-hook-form";
 import { MapPin } from "lucide-react";
 import { type EventFormData } from "@/schemas/event.schema";
 import { VENUE_TYPES } from "@/lib/constants";
-import { Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 interface VenueTabProps {
   form: UseFormReturn<EventFormData>;

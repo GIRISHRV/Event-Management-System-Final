@@ -10,7 +10,7 @@ import { Footer } from "@/components/layout/Footer";
 import { BackgroundEffects } from "@/components/ui/BackgroundEffects";
 import { EventList } from "@/components/events/EventList";
 import { EventRecommendations } from "@/components/events/EventRecommendations";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import type { Event } from "@/lib/supabase-types";
 
 export default function Home() {

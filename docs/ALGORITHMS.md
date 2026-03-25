@@ -5,6 +5,7 @@ EventMS integrates five ML algorithms for event recommendations, budget optimiza
 See also:
 - [docs/ARCHITECTURE.md](./ARCHITECTURE.md) — API routes that invoke these algorithms
 - [docs/DATABASE_SCHEMA.md](./DATABASE_SCHEMA.md) — `algorithm_results`, `attendance_forecasts`, and `event_communities` table schemas
+- [docs/RESEARCH_RESULTS.md](./RESEARCH_RESULTS.md) — 🔬 Latest performance and evaluation metrics
 
 ---
 

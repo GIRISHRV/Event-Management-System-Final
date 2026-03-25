@@ -1,8 +1,8 @@
 "use client";
 
 import { useEventVendors } from "@/hooks/useEventVendors";
-import { Card, CardHeader, CardContent } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { User, Mail, DollarSign, Store } from "lucide-react";
 import { formatINR } from "@/lib/format";

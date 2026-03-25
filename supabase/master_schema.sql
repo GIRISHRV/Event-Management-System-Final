@@ -493,34 +493,67 @@ END $$;
 -- 11. AI / ALGORITHM TABLES
 -- ============================================================================
 
+-- algorithm_results: ML execution log and result cache for all algorithms.
+-- Includes user_id, input_data, version, and expires_at required by all
+-- route handlers (simulate-ai, train-embeddings, evaluate, recommendations).
 CREATE TABLE IF NOT EXISTS algorithm_results (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    algorithm_type TEXT NOT NULL,
-    output_data JSONB NOT NULL,
+    id                UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    algorithm_type    TEXT        NOT NULL,
+    user_id           UUID        REFERENCES profiles(id) ON DELETE CASCADE,
+    input_data        JSONB,
+    output_data       JSONB       NOT NULL,
     execution_time_ms NUMERIC,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    version           TEXT        DEFAULT '1.0.0',
+    expires_at        TIMESTAMPTZ,
+    created_at        TIMESTAMPTZ DEFAULT NOW()
 );
-CREATE INDEX IF NOT EXISTS idx_algo_results_type ON algorithm_results(algorithm_type);
+CREATE INDEX IF NOT EXISTS idx_algo_results_type      ON algorithm_results(algorithm_type);
+CREATE INDEX IF NOT EXISTS idx_algo_results_user_id   ON algorithm_results(user_id);
+CREATE INDEX IF NOT EXISTS idx_algo_results_user_type ON algorithm_results(user_id, algorithm_type);
 
+-- user_interactions: implicit feedback signals for recommendation training.
+-- split column enables user-level train/val/test separation (no leakage).
+-- not_interested added to constraint for negative signal support.
 CREATE TABLE IF NOT EXISTS user_interactions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-    event_id UUID REFERENCES events(id) ON DELETE CASCADE,
-    vendor_service_id UUID REFERENCES vendor_services(id) ON DELETE CASCADE,
-    interaction_type TEXT NOT NULL,
-    implicit_score NUMERIC NOT NULL DEFAULT 1.0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    CONSTRAINT user_interactions_interaction_type_check 
-        CHECK (interaction_type IN ('view', 'favorite', 'rsvp', 'ticket_click', 'booking', 'vendor_view', 'recommendation_click', 'confirmed'))
+    id                 UUID    PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id            UUID    REFERENCES profiles(id) ON DELETE CASCADE,
+    event_id           UUID    REFERENCES events(id) ON DELETE CASCADE,
+    vendor_service_id  UUID    REFERENCES vendor_services(id) ON DELETE CASCADE,
+    interaction_type   TEXT    NOT NULL,
+    implicit_score     NUMERIC NOT NULL DEFAULT 1.0,
+    split              TEXT    CHECK (split IN ('train', 'val', 'test')),
+    created_at         TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT user_interactions_interaction_type_check
+        CHECK (interaction_type IN (
+            'view', 'favorite', 'rsvp', 'ticket_click', 'booking',
+            'vendor_view', 'recommendation_click', 'confirmed', 'not_interested'
+        ))
 );
-CREATE INDEX IF NOT EXISTS idx_user_interactions_user_id ON user_interactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_interactions_user_id  ON user_interactions(user_id);
 CREATE INDEX IF NOT EXISTS idx_user_interactions_event_id ON user_interactions(event_id);
 
+-- attendance_forecasts: iTransformer daily predictions per event.
+CREATE TABLE IF NOT EXISTS attendance_forecasts (
+    id                   UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    event_id             UUID        REFERENCES events(id) ON DELETE CASCADE,
+    forecast_date        DATE        NOT NULL,
+    predicted_attendance NUMERIC     NOT NULL,
+    lower_bound          NUMERIC,
+    upper_bound          NUMERIC,
+    confidence           NUMERIC,
+    trend                TEXT,
+    model_version        TEXT        DEFAULT '1.0.0',
+    created_at           TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(event_id, forecast_date)
+);
+CREATE INDEX IF NOT EXISTS idx_forecasts_event_id ON attendance_forecasts(event_id);
+
+-- event_communities: GAT-KMeans community detection results.
 CREATE TABLE IF NOT EXISTS event_communities (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    community_id TEXT NOT NULL,
-    event_ids UUID[] NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    id           UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
+    community_id TEXT        NOT NULL,
+    event_ids    UUID[]      NOT NULL DEFAULT '{}',
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(community_id)
 );

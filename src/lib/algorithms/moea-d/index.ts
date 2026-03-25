@@ -75,12 +75,20 @@ export class MOEAD
       return { bundles: [], paretoSize: 0, metrics: this.metrics };
     }
 
+    // ── Step 1b: Group by category (New logic for categorical selection) ──────
+    const groupsMap = new Map<string, VendorCandidate[]>();
+    for (const v of affordable) {
+      if (!groupsMap.has(v.category)) groupsMap.set(v.category, []);
+      groupsMap.get(v.category)!.push(v);
+    }
+    const categoryGroups = Array.from(groupsMap.values());
+
     // ── Step 2: Generate weight vectors (H=6 → 28 subproblems) ───────────────
     const weightVectors = generateWeightVectors(this.config.weightDivisions);
 
     // ── Step 3: Run MOEA/D-DRA-NEF ───────────────────────────────────────────
     const population = runMOEAD(
-      affordable,
+      categoryGroups,
       budget,
       weightVectors,
       this.config
@@ -95,10 +103,10 @@ export class MOEAD
     }
 
     // ── Step 5: Select 3–5 diverse bundles from the Pareto front ─────────────
-    const selected = this.selectDiverseBundles(front, affordable, 5);
+    const selected = this.selectDiverseBundles(front, categoryGroups, 5);
 
     // ── Step 6: Label and build VendorBundle objects ──────────────────────────
-    const bundles = this.labelBundles(selected, affordable, budget);
+    const bundles = this.labelBundles(selected, categoryGroups, budget);
 
     // ── Step 6: Compute Hypervolume indicator ───────────────────────────────
     const hvPoints: Array<[number, number]> = front.map(s => [
@@ -126,7 +134,7 @@ export class MOEAD
    */
   private selectDiverseBundles(
     front: ReturnType<typeof paretoFront>,
-    vendors: VendorCandidate[],
+    categoryGroups: VendorCandidate[][],
     maxBundles: number
   ) {
     if (front.length <= maxBundles) return front;
@@ -151,28 +159,43 @@ export class MOEAD
 
   private labelBundles(
     solutions: ReturnType<typeof paretoFront>,
-    vendors: VendorCandidate[],
+    categoryGroups: VendorCandidate[][],
     budget: number
   ): VendorBundle[] {
-    // Compute greedy baseline: sort by quality desc, pick until budget exhausted
-    const greedySorted = [...vendors].sort(
-      (a, b) => b.qualityScore - a.qualityScore
-    );
-    let greedyCost = 0;
-    let greedyQuality = 0;
-    let greedyCount = 0;
-    for (const v of greedySorted) {
-      if (greedyCost + v.baseCost <= budget) {
-        greedyCost += v.baseCost;
-        greedyQuality += v.qualityScore;
-        greedyCount++;
+    // ── Compute greedy baseline: one per category ──
+    const baselineVendors: VendorCandidate[] = categoryGroups.map(group => {
+      // Sort each group by quality/cost ratio or just quality
+      const sorted = [...group].sort((a, b) => b.qualityScore - a.qualityScore);
+      return sorted[0];
+    });
+
+    // Repair greedy if over budget
+    let greedyCost = baselineVendors.reduce((s, v) => s + v.baseCost, 0);
+    const repairedGreedy = [...baselineVendors];
+    if (greedyCost > budget) {
+      const sortedByCost = repairedGreedy
+        .map((v, i) => ({ v, i }))
+        .sort((a, b) => b.v.baseCost - a.v.baseCost);
+      
+      for (const { i, v } of sortedByCost) {
+        if (greedyCost <= budget) break;
+        // Swap to cheapest in same category
+        const group = categoryGroups[i];
+        const cheapestInCat = [...group].sort((a, b) => a.baseCost - b.baseCost)[0];
+        greedyCost = greedyCost - v.baseCost + cheapestInCat.baseCost;
+        repairedGreedy[i] = cheapestInCat;
       }
     }
+
+    const greedyCount = repairedGreedy.length;
+    const greedyQuality = repairedGreedy.reduce((s, v) => s + v.qualityScore, 0);
     const greedyMeanQuality = greedyCount > 0 ? greedyQuality / greedyCount : 0;
 
-    // Build result objects first (before labelling so we can inspect quality/cost)
+    // Build result objects
     const rawBundles = solutions.map((sol) => {
-      const selectedVendors = vendors.filter((_, j) => sol.selection[j]);
+      const selectedVendors: VendorCandidate[] = sol.selection.map((vIdx, catIdx) => 
+        categoryGroups[catIdx][vIdx]
+      );
       const totalCost = sol.objectives.cost;
       const totalQuality = sol.objectives.quality;
       const categories = selectedVendors.map(v => v.category);

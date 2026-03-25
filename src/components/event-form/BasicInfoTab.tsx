@@ -4,8 +4,8 @@ import { Upload, Globe, Activity, Users, IndianRupee, Loader2 } from "lucide-rea
 import { type UseFormReturn } from "react-hook-form";
 import { type EventFormData } from "@/schemas/event.schema";
 import { VISIBILITY_TYPES, EVENT_STATUS } from "@/lib/constants";
-import { Input } from "@/components/ui/Input";
-import { Textarea } from "@/components/ui/Textarea";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { storageService } from "@/services/supabase/storage";
 import { useToast } from "@/hooks/useToast";
 import { getErrorMessage } from "@/lib/errors";

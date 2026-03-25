@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { supabase } from "@/services/supabase/client";
 import { Mail, ArrowRight, Loader2, CheckCircle2, ChevronLeft } from "lucide-react";
 import { BackgroundEffects } from "@/components/ui/BackgroundEffects";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();

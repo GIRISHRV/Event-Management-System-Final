@@ -5,7 +5,7 @@ import { EventList } from "@/components/events/EventList";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { BackgroundEffects } from "@/components/ui/BackgroundEffects";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/cn";

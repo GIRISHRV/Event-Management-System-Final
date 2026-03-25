@@ -1,6 +1,6 @@
 import React from "react";
 import { Calendar, Globe, Store, LayoutGrid, CalendarDays, Map, Briefcase, Inbox, Ticket, Sparkles } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 
 type ViewMode = "grid" | "calendar" | "map";

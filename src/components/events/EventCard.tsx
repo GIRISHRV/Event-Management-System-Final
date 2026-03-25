@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { MapPin, Calendar as CalendarIcon, Users, ArrowRight, Heart, Share2, Pencil, Trash2, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { type EventRow } from "@/schemas/event.schema";
 import { cn } from "@/lib/cn";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/badge";
 
 interface EventCardProps {
     event: EventRow;

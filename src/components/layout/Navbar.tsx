@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Menu, X, Search, Store, LayoutDashboard, Calendar, User, LogOut, Shield } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 
 export function Navbar() {

@@ -46,12 +46,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const adminSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     const start = Date.now();
 
     // 1. Fetch all user_interactions
-    const { data: interactions, error: intError } = await supabase
+    const { data: interactions, error: intError } = await adminSupabase
       .from("user_interactions")
       .select("user_id, event_id, implicit_score")
+      .in("interaction_type", ["confirmed", "rsvp"])
+      .eq("split", "train")
       .not("event_id", "is", null);
 
     if (intError) {
@@ -81,7 +88,7 @@ export async function POST(request: NextRequest) {
     const graph = buildBipartiteGraph(userIds, eventIds, records, "event");
 
     // 3. Load existing embeddings or init fresh
-    const { data: cached } = await supabase
+    const { data: cached } = await adminSupabase
       .from("algorithm_results")
       .select("output_data")
       .eq("algorithm_type", "xsimgcl-embeddings")
@@ -128,12 +135,12 @@ export async function POST(request: NextRequest) {
     const result = trainBPR(state, bprInteractions, epochs, lr);
 
     // 6. Save trained embeddings
-    await supabase
+    await adminSupabase
       .from("algorithm_results")
       .delete()
       .eq("algorithm_type", "xsimgcl-embeddings");
 
-    await supabase.from("algorithm_results").insert({
+    await adminSupabase.from("algorithm_results").insert({
       algorithm_type: "xsimgcl-embeddings",
       input_data: { trainedAt: new Date().toISOString(), epochs, lr },
       output_data: {
@@ -149,7 +156,7 @@ export async function POST(request: NextRequest) {
     const elapsed = Date.now() - start;
 
     // Log the training run separately from standard predictions
-    await supabase.from("algorithm_results").insert({
+    await adminSupabase.from("algorithm_results").insert({
       algorithm_type: "xsimgcl-training-log",
       input_data: { action: "bpr-training", epochs, lr, interactions: bprInteractions.length },
       output_data: {

@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Plus, TrendingUp } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 interface Stat {
     label: string;

@@ -14,8 +14,8 @@ import { DashboardRequestsList } from "@/components/dashboard/DashboardRequestsL
 import VendorServicesManager from "@/components/vendor/VendorServicesManager";
 import Link from "next/link";
 import { TrendingUp, Users, ArrowUpRight, MapPin, Calendar } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/services/supabase/client";
 import VendorServiceForm from "@/components/vendor/VendorServiceForm";
 import { Drawer } from "@/components/ui/Drawer";

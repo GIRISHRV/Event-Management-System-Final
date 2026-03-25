@@ -58,6 +58,35 @@ export function recallAtK(
   return hits / relevant.length;
 }
 
+// Hit Rate@K — fraction of users who received at least one relevant recommendation
+export function hitRateAtK(
+  recommended: string[],
+  relevant: string[],
+  k: number
+): number {
+  const topK = recommended.slice(0, k);
+  const relevantSet = new Set(relevant);
+  return topK.some(id => relevantSet.has(id)) ? 1 : 0;
+}
+
+// MRR@K — Mean Reciprocal Rank
+// Measures where the first relevant item appears in the list.
+// Formula: 1 / rank of first relevant item
+export function mrrAtK(
+  recommended: string[],
+  relevant: string[],
+  k: number
+): number {
+  const topK = recommended.slice(0, k);
+  const relevantSet = new Set(relevant);
+  for (let i = 0; i < topK.length; i++) {
+    if (relevantSet.has(topK[i])) {
+      return 1 / (i + 1);
+    }
+  }
+  return 0;
+}
+
 // Coverage — fraction of all events that appear in at least one recommendation list
 export function catalogCoverage(
   allRecommendationLists: string[][],

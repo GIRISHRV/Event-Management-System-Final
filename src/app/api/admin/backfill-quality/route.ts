@@ -38,8 +38,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Create admin client for bypassing RLS during fetch/update
+    const adminSupabase = createClient(
+      url,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
     // 1. Fetch all vendor services
-    const { data: services } = await supabase
+    const { data: services } = await adminSupabase
       .from("vendor_services")
       .select("id, vendor_id");
 
@@ -48,9 +54,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Fetch all service requests
-    const { data: requests } = await supabase
+    const { data: requests, error: reqError } = await adminSupabase
       .from("service_requests")
       .select("service_id, vendor_id, status, created_at, updated_at");
+
+    console.log("requests fetched:", requests?.length, "error:", reqError);
 
     const requestsByVendor = new Map<string, typeof requests>();
     for (const req of requests ?? []) {
@@ -100,6 +108,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    console.log("vendorMetrics length:", vendorMetrics.length);
+    console.log("requestsByVendor size:", requestsByVendor.size);
     if (vendorMetrics.length === 0) {
       return NextResponse.json({ success: true, message: "No service requests to compute from", updated: 0 });
     }
@@ -119,7 +129,7 @@ export async function POST(request: NextRequest) {
       );
 
       // Update all services for this vendor
-      const { error: updateErr } = await supabase
+      const { error: updateErr } = await adminSupabase
         .from("vendor_services")
         .update({ quality_score: qualityScore })
         .eq("vendor_id", vm.vendorId);
@@ -131,6 +141,9 @@ export async function POST(request: NextRequest) {
       success: true,
       vendorsProcessed: vendorMetrics.length,
       servicesUpdated: updated,
+      updated: updated,
+      skipped: services.length - vendorMetrics.length,
+      total: services.length,
       sampleScores: vendorMetrics.slice(0, 5).map(vm => ({
         vendorId: vm.vendorId.slice(0, 8),
         acceptanceRate: vm.acceptanceRate.toFixed(2),

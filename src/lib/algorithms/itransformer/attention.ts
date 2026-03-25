@@ -3,18 +3,8 @@
 //
 // Paper: Liu et al., "iTransformer: Inverted Transformers Are Effective for Time Series Forecasting"
 //        ICLR 2024 — https://arxiv.org/abs/2310.06625
-//
-// Key insight: instead of treating each TIME STEP as a token (vanilla transformer),
-// iTransformer treats each VARIABLE (feature channel) as a token.
-// Each variable's entire time series is embedded as one token.
-// Attention then captures inter-variable correlations rather than temporal patterns.
-//
-// For event attendance forecasting:
-//   Variables = [daily_rsvps, cumulative_bookings, days_to_event, day_of_week]
-//   Each variable gets a D-dim embedding of its full look-back window.
-//   Attention learns which variables best predict future attendance.
 
-import { addVectors, scaleVector, dotProduct, normalizeVector } from "../shared/matrix";
+import { addVectors, scaleVector, dotProduct, normalizeVector, xavierInit } from "../shared/matrix";
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 
@@ -38,41 +28,58 @@ export const DEFAULT_ITRANSFORMER_CONFIG: iTransformerConfig = {
   confidenceLevel: 0.95,
 };
 
+// ─── Weights Interface ────────────────────────────────────────────────────────
+
+export interface ITransformerWeights {
+  W_proj: number[][][]; // [numVars][dModel][lookback] — Temporal projector
+  W_q: number[][][][]; // [numLayers][numHeads][headDim][dModel]
+  W_k: number[][][][]; // [numLayers][numHeads][headDim][dModel]
+  W_v: number[][][][]; // [numLayers][numHeads][headDim][dModel]
+  W_ff1: number[][][]; // [numLayers][ffnDim][dModel]
+  W_ff2: number[][][]; // [numLayers][dModel][ffnDim]
+  W_out: number[][][]; // [numVars][horizon][dModel] — Output projector
+}
+
+export function generateInitialWeights(
+  numVars: number,
+  config: iTransformerConfig
+): ITransformerWeights {
+  const { dModel, numHeads, numLayers, ffnDim, horizon, lookback } = config;
+  const headDim = Math.floor(dModel / numHeads);
+
+  const rand = () => (Math.random() * 2 - 1) * 0.1;
+  const randMat = (r: number, c: number) => Array.from({ length: r }, () => Array.from({ length: c }, rand));
+
+  return {
+    W_proj: Array.from({ length: numVars }, () => xavierInit(dModel, lookback)),
+    W_q: Array.from({ length: numLayers }, () => Array.from({ length: numHeads }, () => randMat(headDim, dModel))),
+    W_k: Array.from({ length: numLayers }, () => Array.from({ length: numHeads }, () => randMat(headDim, dModel))),
+    W_v: Array.from({ length: numLayers }, () => Array.from({ length: numHeads }, () => randMat(headDim, dModel))),
+    W_ff1: Array.from({ length: numLayers }, () => xavierInit(ffnDim, dModel)),
+    W_ff2: Array.from({ length: numLayers }, () => xavierInit(dModel, ffnDim)),
+    W_out: Array.from({ length: numVars }, () => xavierInit(horizon, dModel)),
+  };
+}
+
 // ─── Variable Embedding ────────────────────────────────────────────────────────
 
 /**
- * Projects a raw time series [lookback] → embedding [dModel].
- * Uses a deterministic projection seeded by variable index for reproducibility.
+ * Projects a raw time series embedding using a learned linear projection W_proj.
+ * token = matVec(W_proj[varIdx], series)
  */
 export function embedVariable(
   series: number[],
   varIdx: number,
-  dModel: number
+  W_proj: number[][][]
 ): number[] {
-  const T = series.length;
-  const embedding = new Array(dModel).fill(0);
-
-  for (let d = 0; d < dModel; d++) {
-    let val = 0;
-    for (let t = 0; t < T; t++) {
-      const w = Math.sin(varIdx * 17.3 + t * 7.1 + d * 3.7);
-      val += series[t] * w;
-    }
-    embedding[d] = val / Math.max(T, 1);
+  if (!W_proj[varIdx]) {
+    // Fallback if weights are corrupted/missing
+    return new Array(W_proj[0]?.length || 32).fill(0);
   }
-
-  return normalizeVector(embedding);
+  return matVec(W_proj[varIdx], series);
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
-
-function deterministicWeight(rows: number, cols: number, seed: number): number[][] {
-  return Array.from({ length: rows }, (_, i) =>
-    Array.from({ length: cols }, (_, j) =>
-      Math.sin(seed * 13.7 + i * 5.3 + j * 2.9) * 0.1
-    )
-  );
-}
 
 function matVec(M: number[][], v: number[]): number[] {
   return M.map(row => row.reduce((s, w, i) => s + w * v[i], 0));
@@ -92,23 +99,18 @@ function relu(x: number): number { return Math.max(0, x); }
 export function multiHeadAttention(
   tokens: number[][],
   numHeads: number,
-  layerIdx: number
+  layerWeights: { W_q: number[][][]; W_k: number[][][]; W_v: number[][][] }
 ): number[][] {
   const dModel = tokens[0].length;
-  const headDim = Math.max(1, Math.floor(dModel / numHeads));
+  const headDim = Math.floor(dModel / numHeads);
   const numVars = tokens.length;
 
   const headOutputs: number[][][] = [];
 
   for (let h = 0; h < numHeads; h++) {
-    const seed = layerIdx * 100 + h;
-    const Wq = deterministicWeight(headDim, dModel, seed);
-    const Wk = deterministicWeight(headDim, dModel, seed + 1);
-    const Wv = deterministicWeight(headDim, dModel, seed + 2);
-
-    const Q = tokens.map(t => matVec(Wq, t));
-    const K = tokens.map(t => matVec(Wk, t));
-    const V = tokens.map(t => matVec(Wv, t));
+    const Q = tokens.map(t => matVec(layerWeights.W_q[h], t));
+    const K = tokens.map(t => matVec(layerWeights.W_k[h], t));
+    const V = tokens.map(t => matVec(layerWeights.W_v[h], t));
     const scale = Math.sqrt(headDim);
 
     const headOut = tokens.map((_, i) => {
@@ -124,14 +126,15 @@ export function multiHeadAttention(
     headOutputs.push(headOut);
   }
 
-  // Mean-pool heads → pad/tile back to dModel
+  // Concatenate heads
   return tokens.map((_, i) => {
-    const pooled = new Array(headDim).fill(0);
-    for (const ho of headOutputs) {
-      for (let d = 0; d < headDim; d++) pooled[d] += ho[i][d];
+    const concat = new Array(dModel).fill(0);
+    for (let h = 0; h < numHeads; h++) {
+      for (let d = 0; d < headDim; d++) {
+        concat[h * headDim + d] = headOutputs[h][i][d];
+      }
     }
-    const mean = pooled.map(x => x / numHeads);
-    return Array.from({ length: dModel }, (_, d) => mean[d % headDim]);
+    return concat;
   });
 }
 
@@ -139,23 +142,11 @@ export function multiHeadAttention(
 
 export function feedForward(
   token: number[],
-  ffnDim: number,
-  layerIdx: number,
-  varIdx: number
+  W_ff1: number[][],
+  W_ff2: number[][]
 ): number[] {
-  const dModel = token.length;
-
-  const h1 = Array.from({ length: ffnDim }, (_, j) => {
-    const w = deterministicWeight(1, dModel, layerIdx * 1000 + varIdx * 10 + j)[0];
-    return relu(dotProduct(token, w));
-  });
-
-  return Array.from({ length: dModel }, (_, d) => {
-    const w = Array.from({ length: ffnDim }, (_, j) =>
-      Math.sin(layerIdx * 500 + varIdx * 20 + d * 7 + j * 3) * 0.05
-    );
-    return dotProduct(h1, w);
-  });
+  const h1 = matVec(W_ff1, token).map(relu);
+  return matVec(W_ff2, h1);
 }
 
 // ─── Transformer Encoder Layer ────────────────────────────────────────────────
@@ -163,24 +154,22 @@ export function feedForward(
 export function encoderLayer(
   tokens: number[][],
   config: iTransformerConfig,
-  layerIdx: number
+  layerWeights: { W_q: number[][][]; W_k: number[][][]; W_v: number[][][]; W_ff1: number[][]; W_ff2: number[][] }
 ): number[][] {
   const dModel = tokens[0].length;
 
   // Self-attention + residual + layernorm
-  const attnOut = multiHeadAttention(tokens, config.numHeads, layerIdx);
+  const attnOut = multiHeadAttention(tokens, config.numHeads, layerWeights);
   const afterAttn = tokens.map((t, i) => {
     const res = addVectors(t, attnOut[i]);
-    const norm = normalizeVector(res);
-    return norm.map(x => x * Math.sqrt(dModel));
+    return normalizeVector(res).map(x => x * Math.sqrt(dModel));
   });
 
   // FFN + residual + layernorm per variable
-  return afterAttn.map((t, varIdx) => {
-    const ffnOut = feedForward(t, config.ffnDim, layerIdx, varIdx);
+  return afterAttn.map((t) => {
+    const ffnOut = feedForward(t, layerWeights.W_ff1, layerWeights.W_ff2);
     const res = addVectors(t, ffnOut);
-    const norm = normalizeVector(res);
-    return norm.map(x => x * Math.sqrt(dModel));
+    return normalizeVector(res).map(x => x * Math.sqrt(dModel));
   });
 }
 
@@ -193,17 +182,11 @@ export function encoderLayer(
 export function projectToForecast(
   tokens: number[][],
   horizon: number,
-  varImportance: number[]
+  varImportance: number[],
+  W_out: number[][][]
 ): number[] {
-  const dModel = tokens[0].length;
-
   const varForecasts = tokens.map((token, varIdx) =>
-    Array.from({ length: horizon }, (_, h) => {
-      const w = Array.from({ length: dModel }, (_, d) =>
-        Math.sin(varIdx * 31.7 + h * 11.3 + d * 2.1) * 0.1
-      );
-      return dotProduct(token, w);
-    })
+    matVec(W_out[varIdx], token)
   );
 
   const forecast = new Array(horizon).fill(0);

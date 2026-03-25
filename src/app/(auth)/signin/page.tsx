@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { Mail, Lock, ArrowRight, Loader2, Sparkles, ChevronLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/useToast";
-import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { BackgroundEffects } from "@/components/ui/BackgroundEffects";
 
 export default function SignInPage() {

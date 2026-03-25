@@ -12,7 +12,7 @@ import { supabase } from "@/services/supabase/client";
 import { vendorsService } from "@/services/vendors.service";
 import { useToast } from "@/hooks/useToast";
 import { STORAGE_BUCKETS } from "@/lib/constants";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 interface VendorServiceFormProps {
   onClose: () => void;

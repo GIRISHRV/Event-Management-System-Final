@@ -12,7 +12,7 @@ import type { ObjectiveVector, IdealPoint } from "./decomposition";
 // ─── Solution ─────────────────────────────────────────────────────────────────
 
 export interface Solution {
-  selection: boolean[];          // which vendors are selected
+  selection: number[];           // indices of selected vendors (one per category group)
   objectives: ObjectiveVector;
   feasible: boolean;             // within budget
 }
@@ -21,13 +21,21 @@ export interface Solution {
 
 /**
  * Evaluates the three objectives for a given vendor selection.
+ * selection[i] is the index of the vendor chosen from the i-th category group.
  */
 export function evaluate(
-  selection: boolean[],
-  vendors: VendorCandidate[],
+  selection: number[],
+  categoryGroups: VendorCandidate[][],
   budget: number
 ): { objectives: ObjectiveVector; feasible: boolean } {
-  const selected = vendors.filter((_, i) => selection[i]);
+  const selected: VendorCandidate[] = [];
+  
+  for (let i = 0; i < categoryGroups.length; i++) {
+    const idx = selection[i];
+    if (idx >= 0 && idx < categoryGroups[i].length) {
+      selected.push(categoryGroups[i][idx]);
+    }
+  }
 
   const cost = selected.reduce((s, v) => s + v.baseCost, 0);
   const feasible = cost <= budget;
@@ -49,27 +57,48 @@ export function evaluate(
 // ─── Random Solution Generation ───────────────────────────────────────────────
 
 /**
- * Generates a random feasible solution by greedily adding vendors
- * until the budget is exhausted.
+ * Generates a random feasible solution by picking one random vendor per category.
+ * If over budget, it greedily swaps to cheaper vendors in the same category.
  */
 export function randomFeasibleSolution(
-  vendors: VendorCandidate[],
+  categoryGroups: VendorCandidate[][],
   budget: number
 ): Solution {
-  // Shuffle vendor indices
-  const indices = vendors.map((_, i) => i).sort(() => Math.random() - 0.5);
+  // 1. Initial random selection (one per category)
+  const selection = categoryGroups.map(group => 
+    Math.floor(Math.random() * group.length)
+  );
 
-  const selection = new Array(vendors.length).fill(false);
-  let remaining = budget;
+  let { objectives, feasible } = evaluate(selection, categoryGroups, budget);
 
-  for (const i of indices) {
-    if (vendors[i].baseCost <= remaining) {
-      selection[i] = true;
-      remaining -= vendors[i].baseCost;
+  // 2. Greedy Repair if over budget
+  if (!feasible) {
+    // Rank categories by the cost of their current selection
+    const sortedCats = categoryGroups
+      .map((_, i) => i)
+      .sort((a, b) => {
+        const costA = categoryGroups[a][selection[a]].baseCost;
+        const costB = categoryGroups[b][selection[b]].baseCost;
+        return costB - costA; // Most expensive categories first
+      });
+
+    for (const catIdx of sortedCats) {
+      if (feasible) break;
+      
+      // Find cheapest vendor in this category
+      const group = categoryGroups[catIdx];
+      let minIdx = 0;
+      for (let j = 1; j < group.length; j++) {
+        if (group[j].baseCost < group[minIdx].baseCost) minIdx = j;
+      }
+      
+      selection[catIdx] = minIdx;
+      const result = evaluate(selection, categoryGroups, budget);
+      objectives = result.objectives;
+      feasible = result.feasible;
     }
   }
 
-  const { objectives, feasible } = evaluate(selection, vendors, budget);
   return { selection, objectives, feasible };
 }
 

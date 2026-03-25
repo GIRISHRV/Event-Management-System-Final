@@ -41,19 +41,40 @@ export const DEFAULT_GAT_CONFIG: GATConfig = {
   dropout: 0.6,
 };
 
+// ─── Weights Interface ────────────────────────────────────────────────────────
+
+export interface GATHeadWeights {
+  W: number[][]; // [hiddenDim × inputDim]
+  a: number[];   // [2 * hiddenDim]
+}
+
+export interface GATLayerWeights {
+  heads: GATHeadWeights[];
+}
+
+export interface GATWeights {
+  layers: GATLayerWeights[];
+}
+
+export function generateInitialGatWeights(
+  config: GATConfig
+): GATWeights {
+  const { inputDim, hiddenDim, numHeads, numLayers } = config;
+  
+  const layers: GATLayerWeights[] = [];
+  for (let l = 0; l < numLayers; l++) {
+    const inDim = l === 0 ? inputDim : hiddenDim;
+    const heads = Array.from({ length: numHeads }, () => ({
+      W: xavierInit(hiddenDim, inDim),
+      a: Array.from({ length: 2 * hiddenDim }, () => (Math.random() * 2 - 1) * 0.1),
+    }));
+    layers.push({ heads });
+  }
+
+  return { layers };
+}
+
 // ─── Single GAT Head ──────────────────────────────────────────────────────────
-
-interface GATHead {
-  W: number[][];          // weight matrix [inputDim × hiddenDim]
-  a: number[];            // attention vector [2 * hiddenDim]
-}
-
-function initGATHead(inputDim: number, hiddenDim: number): GATHead {
-  return {
-    W: xavierInit(hiddenDim, inputDim),
-    a: Array.from({ length: 2 * hiddenDim }, () => (Math.random() * 2 - 1) * 0.1),
-  };
-}
 
 function leakyRelu(x: number, slope: number): number {
   return x >= 0 ? x : slope * x;
@@ -64,20 +85,19 @@ function matVec(M: number[][], v: number[]): number[] {
 }
 
 /**
- * Runs a single GAT head over all nodes.
- * Returns new embeddings of shape [numNodes × hiddenDim].
+ * Runs a single GAT head over all nodes using provided weights.
  */
-function runGATHead(
+function runGatHead(
   graph: Graph,
-  nodeFeatures: number[][],   // [numNodes × inputDim]
-  head: GATHead,
+  nodeFeatures: number[][],
+  weights: GATHeadWeights,
   leakySlope: number
 ): number[][] {
   const n = graph.nodes.length;
-  const hiddenDim = head.W.length;
+  const hiddenDim = weights.W.length;
 
   // 1. Linear transform: Wh_i for each node
-  const Wh: number[][] = nodeFeatures.map((h) => matVec(head.W, h));
+  const Wh: number[][] = nodeFeatures.map((h) => matVec(weights.W, h));
 
   // 2. Compute attention coefficients + softmax per node
   const newEmbeddings: number[][] = Array.from({ length: n }, () =>
@@ -88,7 +108,6 @@ function runGATHead(
     const neighbours = graph.adjacency.getNonZeroCols(i);
 
     if (neighbours.length === 0) {
-      // Isolated node — keep its own transformed embedding
       newEmbeddings[i] = [...Wh[i]];
       continue;
     }
@@ -98,18 +117,16 @@ function runGATHead(
 
     // Raw attention scores e_ij = LeakyReLU(a^T [Wh_i || Wh_j])
     const rawScores = allNeighbours.map(({ col: j }) => {
-      const concat = [...Wh[i], ...Wh[j]]; // [2 * hiddenDim]
-      const dot = head.a.reduce((s, w, k) => s + w * concat[k], 0);
+      const concat = [...Wh[i], ...Wh[j]];
+      const dot = weights.a.reduce((s, w, k) => s + w * concat[k], 0);
       return leakyRelu(dot, leakySlope);
     });
 
-    // Softmax over neighbours
     const maxScore = Math.max(...rawScores);
     const expScores = rawScores.map((s) => Math.exp(s - maxScore));
     const sumExp = expScores.reduce((a, b) => a + b, 0);
     const alphas = expScores.map((e) => e / (sumExp || 1));
 
-    // Weighted sum: h'_i = Σ_j α_ij * Wh_j
     let agg = new Array(hiddenDim).fill(0);
     allNeighbours.forEach(({ col: j }, idx) => {
       agg = addVectors(agg, scaleVector(Wh[j], alphas[idx]));
@@ -124,28 +141,16 @@ function runGATHead(
 
 // ─── Multi-Head GAT Layer ─────────────────────────────────────────────────────
 
-interface GATLayer {
-  heads: GATHead[];
-}
-
-function initGATLayer(inputDim: number, hiddenDim: number, numHeads: number): GATLayer {
-  return {
-    heads: Array.from({ length: numHeads }, () => initGATHead(inputDim, hiddenDim)),
-  };
-}
-
-function runGATLayer(
+function runGatLayer(
   graph: Graph,
   nodeFeatures: number[][],
-  layer: GATLayer,
+  layerWeights: GATLayerWeights,
   leakySlope: number
 ): number[][] {
-  // Run each head independently
-  const headOutputs = layer.heads.map((head) =>
-    runGATHead(graph, nodeFeatures, head, leakySlope)
+  const headOutputs = layerWeights.heads.map((head) =>
+    runGatHead(graph, nodeFeatures, head, leakySlope)
   );
 
-  // Mean-pool across heads → [numNodes × hiddenDim]
   const n = nodeFeatures.length;
   const hiddenDim = headOutputs[0][0].length;
 
@@ -208,9 +213,10 @@ export function buildNodeFeatures(
 export function runGAT(
   graph: Graph,
   events: Array<{ id: string; tags: string[] }>,
-  config: GATConfig
+  config: GATConfig,
+  weights?: GATWeights
 ): Map<string, number[]> {
-  // Build initial features — project to config.inputDim if needed
+  // Build initial features
   const { features, dim } = buildNodeFeatures(events);
 
   // Pad or truncate features to match inputDim
@@ -221,18 +227,14 @@ export function runGAT(
     return padded;
   });
 
-  // Build GAT layers
-  const layers: GATLayer[] = [];
-  for (let l = 0; l < config.numLayers; l++) {
-    const inDim = l === 0 ? config.inputDim : config.hiddenDim;
-    layers.push(initGATLayer(inDim, config.hiddenDim, config.numHeads));
-  }
+  const activeWeights = weights ?? generateInitialGatWeights(config);
 
-  // Forward pass — no residual across dim changes
+  // Forward pass
   let currentFeatures = paddedFeatures;
-  for (let l = 0; l < layers.length; l++) {
-    const layerOut = runGATLayer(graph, currentFeatures, layers[l], config.leakySlope);
-    // Only add residual if input and output dims match
+  for (let l = 0; l < config.numLayers; l++) {
+    const layerOut = runGatLayer(graph, currentFeatures, activeWeights.layers[l], config.leakySlope);
+    
+    // Skip residual if dimensions don't match (e.g. first layer usually has different inputDim)
     if (currentFeatures[0]?.length === layerOut[0]?.length) {
       currentFeatures = currentFeatures.map((f, i) =>
         normalizeVector(addVectors(f, layerOut[i]))

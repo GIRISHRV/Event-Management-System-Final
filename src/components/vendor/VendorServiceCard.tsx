@@ -4,7 +4,7 @@ import React from "react";
 import Image from "next/image";
 import { IndianRupee, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import type { VendorServiceRow } from "@/schemas/vendor.schema";
 
 interface VendorServiceCardProps {
