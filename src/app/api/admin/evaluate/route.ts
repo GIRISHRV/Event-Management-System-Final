@@ -209,7 +209,11 @@ export async function GET(request: NextRequest) {
 
       // Blended (for backwards compat)
       meanNdcg10: parseFloat(((xsimgclMetrics.ndcg * xsimgclMetrics.count + gnnCfMetrics.ndcg * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
+      meanPrecision10: parseFloat(((xsimgclMetrics.precision * xsimgclMetrics.count + gnnCfMetrics.precision * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
+      meanMrr10: parseFloat(((xsimgclMetrics.mrr * xsimgclMetrics.count + gnnCfMetrics.mrr * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
+      meanHitRate10: parseFloat(((xsimgclMetrics.hitRate * xsimgclMetrics.count + gnnCfMetrics.hitRate * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
       baselineNdcg10: parseFloat(((xsimgclMetrics.baselineNdcg * xsimgclMetrics.count + gnnCfMetrics.baselineNdcg * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
+      baselinePrecision10: parseFloat(((xsimgclMetrics.baselinePrecision * xsimgclMetrics.count + gnnCfMetrics.baselinePrecision * gnnCfMetrics.count) / Math.max(1, xsimgclMetrics.count + gnnCfMetrics.count)).toFixed(4)),
 
       evaluationMethod: "global_temporal_cutoff_70pct",
       cutoffTimestamp: new Date(cutoffTime).toISOString(),
