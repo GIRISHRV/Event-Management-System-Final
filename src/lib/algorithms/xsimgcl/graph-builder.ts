@@ -101,7 +101,8 @@ export async function buildUserGraph(
 
 // Build the full training graph across all users and events (training pass)
 export async function buildFullGraph(
-  supabase: SupabaseClient
+  supabase: SupabaseClient,
+  cutoffDate?: string
 ): Promise<GraphBuildResult> {
   const { data: interactions, error } = await supabase
     .from("user_interactions")
@@ -111,10 +112,16 @@ export async function buildFullGraph(
 
   if (error) throw new Error(`[XSimGCL] Full graph fetch failed: ${error.message}`);
 
-  const { data: bookings } = await supabase
+  let bookingsQuery = supabase
     .from("bookings")
-    .select("user_id, event_id, status")
+    .select("user_id, event_id, status, created_at")
     .limit(50000);
+
+  if (cutoffDate) {
+    bookingsQuery = bookingsQuery.lte("created_at", cutoffDate);
+  }
+
+  const { data: bookings } = await bookingsQuery;
 
   const records: InteractionRecord[] = [];
 

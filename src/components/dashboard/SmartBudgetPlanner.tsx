@@ -30,7 +30,7 @@ interface Bundle {
   vendors: VendorInBundle[];
   totalCost: number;
   totalQuality: number;
-  categoryDiversity: number;
+  averageRating: number;
   improvementOverGreedy: number;
 }
 
@@ -402,8 +402,8 @@ export function SmartBudgetPlanner({ isOpen, onClose, eventId, budget }: Props) 
                         <p className="text-sm font-bold text-[var(--color-text-primary)]">{Math.round(bundle.totalQuality)}/100</p>
                       </div>
                       <div className="text-center p-2 rounded-xl bg-[var(--color-background)]">
-                        <p className="text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wider mb-0.5">Vendors</p>
-                        <p className="text-sm font-bold text-[var(--color-text-primary)]">{bundle.vendors.length}</p>
+                        <p className="text-[10px] text-[var(--color-text-tertiary)] uppercase tracking-wider mb-0.5">Rating</p>
+                        <p className="text-sm font-bold text-[var(--color-text-primary)]">{bundle.averageRating.toFixed(1)} <span className="text-[10px] text-[var(--color-text-tertiary)] relative -top-0.5">/5</span></p>
                       </div>
                     </div>
 

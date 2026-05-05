@@ -5,7 +5,7 @@
 // solution[i] = true  → include vendor i in the bundle
 // solution[i] = false → exclude vendor i
 
-import { shannonEntropy } from "../shared/matrix";
+
 import type { VendorCandidate } from "../shared/types";
 import type { ObjectiveVector, IdealPoint } from "./decomposition";
 
@@ -45,11 +45,13 @@ export function evaluate(
       ? 0
       : selected.reduce((s, v) => s + v.qualityScore, 0) / selected.length;
 
-  const categories = selected.map(v => v.category);
-  const diversity = shannonEntropy(categories);
+  const rating =
+    selected.length === 0
+      ? 0
+      : selected.reduce((s, v) => s + v.rating, 0) / selected.length;
 
   return {
-    objectives: { cost, quality, diversity },
+    objectives: { cost, quality, rating },
     feasible,
   };
 }
@@ -107,21 +109,21 @@ export function randomFeasibleSolution(
 /**
  * Returns true if solution A dominates solution B.
  * A dominates B if A is no worse on all objectives and strictly better on at least one.
- * (All objectives are "lower is better" after cost/quality/diversity negation.)
+ * (All objectives are "lower is better" after cost/quality/rating negation.)
  */
 export function dominates(a: ObjectiveVector, b: ObjectiveVector): boolean {
-  // For our objectives: cost ↓, quality ↑ (so -quality), diversity ↑ (so -diversity)
+  // For our objectives: cost ↓, quality ↑ (so -quality), rating ↑ (so -rating)
   const aCost = a.cost;
   const bCost = b.cost;
   const aQual = -a.quality;
   const bQual = -b.quality;
-  const aDiv = -a.diversity;
-  const bDiv = -b.diversity;
+  const aRating = -a.rating;
+  const bRating = -b.rating;
 
   const noWorse =
-    aCost <= bCost && aQual <= bQual && aDiv <= bDiv;
+    aCost <= bCost && aQual <= bQual && aRating <= bRating;
   const strictlyBetter =
-    aCost < bCost || aQual < bQual || aDiv < bDiv;
+    aCost < bCost || aQual < bQual || aRating < bRating;
 
   return noWorse && strictlyBetter;
 }
@@ -153,7 +155,7 @@ export function computeIdealFromPopulation(
     ideal = {
       minCost:      Math.min(ideal.minCost, s.objectives.cost),
       maxQuality:   Math.max(ideal.maxQuality, s.objectives.quality),
-      maxDiversity: Math.max(ideal.maxDiversity, s.objectives.diversity),
+      maxRating:    Math.max(ideal.maxRating, s.objectives.rating),
     };
   }
   return ideal;
@@ -169,7 +171,7 @@ export function computeNadirFromPopulation(
     nadir = {
       minCost:      Math.max(nadir.minCost, s.objectives.cost),
       maxQuality:   Math.min(nadir.maxQuality, s.objectives.quality),
-      maxDiversity: Math.min(nadir.maxDiversity, s.objectives.diversity),
+      maxRating:    Math.min(nadir.maxRating, s.objectives.rating),
     };
   }
   return nadir;

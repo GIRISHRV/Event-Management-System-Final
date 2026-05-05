@@ -22,6 +22,7 @@ import type {
   ValidationResult,
 } from "../shared/types";
 import { buildUserGraph, fetchCandidateEvents } from "./graph-builder";
+import { buildFullGraph } from "./graph-builder";
 import {
   initEmbeddings,
   lightgcnPropagate,
@@ -125,18 +126,25 @@ export class XSimGCL implements AlgorithmBase<RecommendationInput, Recommendatio
     const limit = input.limit ?? 6;
     const excludeIds = new Set(input.excludeEventIds ?? []);
 
-    // 1. Build bipartite interaction graph for this user
-    // In eval mode, pass the cutoff date so only training-window bookings
-    // are included. This prevents test-window bookings from being added to
-    // interactedIds and excluded from the candidate pool.
+    // 1. Build the user's interaction footprint for candidate exclusion,
+    //    then build the collaborative graph for embedding propagation.
+    //    The user-specific graph prevents test-window leakage into the
+    //    excluded set, while the full graph lets the model learn item
+    //    embeddings from other users' training interactions.
     const evalMode = (input as RecommendationInput & { evalMode?: boolean; cutoffDate?: string }).evalMode === true;
     const cutoffDate = (input as RecommendationInput & { evalMode?: boolean; cutoffDate?: string }).cutoffDate;
 
-    const { graph, userIds, eventIds, interactionCount } = await buildUserGraph(
+    const userGraph = await buildUserGraph(
       input.userId,
       supabaseClient,
       evalMode ? cutoffDate : undefined
     );
+
+    const collaborativeGraph = evalMode
+      ? await buildFullGraph(supabaseClient, cutoffDate)
+      : userGraph;
+
+    const { graph, userIds, eventIds, interactionCount } = collaborativeGraph;
 
     this.metrics.inputSize = interactionCount;
 

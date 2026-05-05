@@ -18,7 +18,7 @@ import type {
   VendorCandidate,
   ValidationResult,
 } from "../shared/types";
-import { shannonEntropy } from "../shared/matrix";
+
 import { hypervolume2D } from "../shared/evaluation";
 import { generateWeightVectors } from "./decomposition";
 import { paretoFront } from "./pareto";
@@ -75,9 +75,13 @@ export class MOEAD
       return { bundles: [], paretoSize: 0, metrics: this.metrics };
     }
 
-    // ── Step 1b: Group by category (New logic for categorical selection) ──────
+    // ── Step 1b: Group by category ──────
     const groupsMap = new Map<string, VendorCandidate[]>();
     for (const v of affordable) {
+      // If the user specified required categories, completely ignore all other categories!
+      if (input.requiredCategories && input.requiredCategories.length > 0 && !input.requiredCategories.includes(v.category.toLowerCase())) {
+        continue;
+      }
       if (!groupsMap.has(v.category)) groupsMap.set(v.category, []);
       groupsMap.get(v.category)!.push(v);
     }
@@ -139,20 +143,73 @@ export class MOEAD
   ) {
     if (front.length <= maxBundles) return front;
 
-    // Sort by cost ascending — spread evenly
-    const sorted = [...front].sort(
-      (a, b) => a.objectives.cost - b.objectives.cost
-    );
+    // 1. Normalise objectives for fair Euclidean distance calculation
+    const costs = front.map(f => f.objectives.cost);
+    const qualities = front.map(f => f.objectives.quality);
+    const ratings = front.map(f => f.objectives.rating);
 
-    // Pick first (cheapest), last (most expensive), and evenly spaced middle ones
-    const step = (sorted.length - 1) / (maxBundles - 1);
-    const picked: typeof sorted = [];
-    for (let i = 0; i < maxBundles; i++) {
-      const idx = Math.round(i * step);
-      picked.push(sorted[Math.min(idx, sorted.length - 1)]);
+    const minC = Math.min(...costs), maxC = Math.max(...costs);
+    const minQ = Math.min(...qualities), maxQ = Math.max(...qualities);
+    const minR = Math.min(...ratings), maxR = Math.max(...ratings);
+
+    const rangeC = Math.max(maxC - minC, 1);
+    const rangeQ = Math.max(maxQ - minQ, 1);
+    const rangeR = Math.max(maxR - minR, 1);
+
+    const normalised = front.map(f => ({
+      ...f,
+      norm: [
+        (f.objectives.cost - minC) / rangeC,
+        (f.objectives.quality - minQ) / rangeQ,
+        (f.objectives.rating - minR) / rangeR,
+      ],
+    }));
+
+    const picked: typeof normalised = [];
+
+    // Seed 1: The absolute cheapest solution (guarantees a strong "Budget Pick")
+    let bestCostIdx = 0;
+    for (let i = 1; i < normalised.length; i++) {
+      if (normalised[i].objectives.cost < normalised[bestCostIdx].objectives.cost) bestCostIdx = i;
+    }
+    picked.push(normalised.splice(bestCostIdx, 1)[0]);
+
+    // Seed 2: The absolute highest quality solution (guarantees a strong "Premium")
+    if (normalised.length > 0) {
+      let bestQualIdx = 0;
+      for (let i = 1; i < normalised.length; i++) {
+        if (normalised[i].objectives.quality > normalised[bestQualIdx].objectives.quality) bestQualIdx = i;
+      }
+      picked.push(normalised.splice(bestQualIdx, 1)[0]);
     }
 
-    return picked;
+    // Iteratively pick the solution that maximises the minimum distance to already picked solutions
+    while (picked.length < maxBundles && normalised.length > 0) {
+      let maxMinDist = -1;
+      let nextIdx = -1;
+
+      for (let i = 0; i < normalised.length; i++) {
+        let minDist = Infinity;
+        for (const p of picked) {
+          const dist = Math.sqrt(
+            Math.pow(normalised[i].norm[0] - p.norm[0], 2) +
+            Math.pow(normalised[i].norm[1] - p.norm[1], 2) +
+            Math.pow(normalised[i].norm[2] - p.norm[2], 2)
+          );
+          if (dist < minDist) minDist = dist;
+        }
+        if (minDist > maxMinDist) {
+          maxMinDist = minDist;
+          nextIdx = i;
+        }
+      }
+      picked.push(normalised.splice(nextIdx, 1)[0]);
+    }
+
+    return picked.sort((a, b) => a.objectives.cost - b.objectives.cost).map(p => {
+      const { norm, ...rest } = p;
+      return rest;
+    });
   }
 
   // ─── Bundle Labelling ─────────────────────────────────────────────────────────
@@ -198,8 +255,9 @@ export class MOEAD
       );
       const totalCost = sol.objectives.cost;
       const totalQuality = sol.objectives.quality;
-      const categories = selectedVendors.map(v => v.category);
-      const categoryDiversity = shannonEntropy(categories);
+      const averageRating = selectedVendors.length > 0 
+        ? selectedVendors.reduce((s, v) => s + v.rating, 0) / selectedVendors.length 
+        : 0;
       const improvement =
         greedyMeanQuality > 0
           ? ((totalQuality - greedyMeanQuality) / greedyMeanQuality) * 100
@@ -208,7 +266,7 @@ export class MOEAD
         vendors: selectedVendors,
         totalCost,
         totalQuality,
-        categoryDiversity,
+        averageRating,
         improvementOverGreedy: Math.round(improvement * 10) / 10,
       };
     });

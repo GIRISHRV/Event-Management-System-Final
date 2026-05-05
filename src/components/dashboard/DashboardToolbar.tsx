@@ -1,5 +1,5 @@
 import React from "react";
-import { Calendar, Globe, Store, LayoutGrid, CalendarDays, Map, Briefcase, Inbox, Ticket, Sparkles } from "lucide-react";
+import { Calendar, Globe, Store, LayoutGrid, CalendarDays, Map, Briefcase, Inbox, Ticket, Sparkles, Star } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 
@@ -43,6 +43,7 @@ export const CUSTOMER_TABS: DashboardTabDef[] = [
 export const VENDOR_TABS: DashboardTabDef[] = [
     { value: "services", label: "My Services", icon: Briefcase },
     { value: "requests", label: "Service Requests", icon: Inbox },
+    { value: "ratings", label: "My Ratings", icon: Star },
     { value: "insights", label: "AI Insights", icon: Sparkles },
 ];
 

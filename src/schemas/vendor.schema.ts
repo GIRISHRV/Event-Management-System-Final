@@ -38,8 +38,20 @@ export const vendorServiceSchema = z.object({
   base_price: z.number()
     .min(0, "Price must be positive")
     .max(9999999, "Price exceeds maximum allowed"),
-  price_unit: z.enum(["per_hour", "per_event", "per_guest", "fixed"]).default("fixed"),
-  category: vendorCategoryEnum.default("other"),
+  price_unit: z.preprocess(
+    (val) => (typeof val === "string" ? val.toLowerCase().replace(/\s+/g, "_") : val),
+    z.enum(["per_hour", "per_event", "per_guest", "fixed"]).catch("fixed")
+  ),
+  category: z.preprocess(
+    (val) => {
+      if (typeof val === "string") {
+        const lower = val.toLowerCase().replace(/\s+/g, "_");
+        if (vendorCategoryEnum.options.includes(lower as any)) return lower;
+      }
+      return "other";
+    },
+    vendorCategoryEnum.catch("other")
+  ),
   
   // Service quality metrics (optional for now)
   quality_score: z.number().min(0).max(100).nullable().optional(),

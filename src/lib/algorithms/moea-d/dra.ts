@@ -194,12 +194,12 @@ export function runMOEAD(
   let ideal = {
     minCost: Math.min(...population.filter(s => s.feasible).map(s => s.objectives.cost), Infinity),
     maxQuality: Math.max(...population.filter(s => s.feasible).map(s => s.objectives.quality), 0),
-    maxDiversity: Math.max(...population.filter(s => s.feasible).map(s => s.objectives.diversity), 0),
+    maxRating: Math.max(...population.filter(s => s.feasible).map(s => s.objectives.rating), 0),
   };
   const nadir = {
     minCost: Math.max(...population.filter(s => s.feasible).map(s => s.objectives.cost), 0),
     maxQuality: Math.min(...population.filter(s => s.feasible).map(s => s.objectives.quality), 100),
-    maxDiversity: Math.min(...population.filter(s => s.feasible).map(s => s.objectives.diversity), 10),
+    maxRating: Math.min(...population.filter(s => s.feasible).map(s => s.objectives.rating), 5),
   };
 
   // Initialise DRA utilities
@@ -243,7 +243,7 @@ export function runMOEAD(
       ideal = {
         minCost:      Math.min(ideal.minCost, offspring.objectives.cost),
         maxQuality:   Math.max(ideal.maxQuality, offspring.objectives.quality),
-        maxDiversity: Math.max(ideal.maxDiversity, offspring.objectives.diversity),
+        maxRating: Math.max(ideal.maxRating, offspring.objectives.rating),
       };
 
       // Update neighbouring subproblems if offspring is better

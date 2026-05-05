@@ -20,6 +20,7 @@ import { supabase } from "@/services/supabase/client";
 import VendorServiceForm from "@/components/vendor/VendorServiceForm";
 import { Drawer } from "@/components/ui/Drawer";
 import { useToast } from "@/hooks/useToast";
+import { VendorRatingsPanel } from "@/components/vendor/VendorRatingsPanel";
 
 interface CommunityInsight {
   communityId: string;
@@ -158,6 +159,10 @@ export default function VendorDashboardPage() {
 
         {activeTab === "requests" && (
           <DashboardRequestsList role="vendor" />
+        )}
+
+        {activeTab === "ratings" && (
+          <VendorRatingsPanel />
         )}
 
         {activeTab === "insights" && (

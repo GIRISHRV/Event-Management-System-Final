@@ -1,0 +1,1 @@
+https://my-app-swart-kappa-40.vercel.app/supabase-proxy

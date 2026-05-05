@@ -144,7 +144,7 @@ export interface VendorBundle {
   vendors: VendorCandidate[];
   totalCost: number;
   totalQuality: number;
-  categoryDiversity: number;   // Shannon entropy
+  averageRating: number;         // 0-5 scale
   improvementOverGreedy: number; // percentage
 }
 

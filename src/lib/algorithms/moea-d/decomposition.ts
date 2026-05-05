@@ -9,7 +9,7 @@
 // Three objectives for vendor budget optimisation:
 //   f1 = cost          (minimise — lower is better)
 //   f2 = quality       (maximise — negate so we minimise)
-//   f3 = diversity     (maximise — Shannon entropy of categories, negated)
+//   f3 = rating        (maximise — negate so we minimise)
 //
 // Tchebycheff scalarisation:
 //   g(x | λ, z*) = max_i { λ_i * |f_i(x) - z*_i| }
@@ -18,20 +18,20 @@
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface WeightVector {
-  lambda: [number, number, number];  // [cost_w, quality_w, diversity_w]
+  lambda: [number, number, number];  // [cost_w, quality_w, rating_w]
   neighbourhoodIndices: number[];    // indices of T nearest weight vectors
 }
 
 export interface ObjectiveVector {
   cost: number;        // total cost (raw ₹)
   quality: number;     // mean quality score [0–100]
-  diversity: number;   // Shannon entropy of categories [0–log(K)]
+  rating: number;      // mean rating [0–5]
 }
 
 export interface IdealPoint {
   minCost: number;
   maxQuality: number;
-  maxDiversity: number;
+  maxRating: number;
 }
 
 // ─── Uniform Weight Vector Generation ─────────────────────────────────────────
@@ -90,11 +90,11 @@ export function tchebycheff(
   // Normalise each objective to [0,1] — lower = better after normalisation
   const costRange = Math.max(nadir.minCost - ideal.minCost, 1);
   const qualRange = Math.max(ideal.maxQuality - nadir.maxQuality, 1);
-  const divRange  = Math.max(ideal.maxDiversity - nadir.maxDiversity, 1);
+  const ratingRange = Math.max(ideal.maxRating - nadir.maxRating, 1);
 
   const f1 = (obj.cost - ideal.minCost) / costRange;                    // cost: lower better
   const f2 = (ideal.maxQuality - obj.quality) / qualRange;              // quality: higher better → negate
-  const f3 = (ideal.maxDiversity - obj.diversity) / divRange;           // diversity: higher better → negate
+  const f3 = (ideal.maxRating - obj.rating) / ratingRange;              // rating: higher better → negate
 
   return Math.max(
     lambda[0] * Math.abs(f1),
@@ -112,7 +112,7 @@ export function updateIdealPoint(
   return {
     minCost:      Math.min(current.minCost, obj.cost),
     maxQuality:   Math.max(current.maxQuality, obj.quality),
-    maxDiversity: Math.max(current.maxDiversity, obj.diversity),
+    maxRating:    Math.max(current.maxRating, obj.rating),
   };
 }
 
@@ -123,14 +123,14 @@ export function updateNadirPoint(
   return {
     minCost:      Math.max(current.minCost, obj.cost),
     maxQuality:   Math.min(current.maxQuality, obj.quality),
-    maxDiversity: Math.min(current.maxDiversity, obj.diversity),
+    maxRating:    Math.min(current.maxRating, obj.rating),
   };
 }
 
 export function initIdealPoint(): IdealPoint {
-  return { minCost: Infinity, maxQuality: -Infinity, maxDiversity: -Infinity };
+  return { minCost: Infinity, maxQuality: -Infinity, maxRating: -Infinity };
 }
 
 export function initNadirPoint(): IdealPoint {
-  return { minCost: -Infinity, maxQuality: Infinity, maxDiversity: Infinity };
+  return { minCost: -Infinity, maxQuality: Infinity, maxRating: Infinity };
 }

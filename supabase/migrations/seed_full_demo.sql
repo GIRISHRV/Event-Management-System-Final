@@ -1,18 +1,18 @@
 -- ============================================================================
--- FULL DEMO SEED SCRIPT — v4 (RESEARCH GRADE)
+-- FULL DEMO SEED SCRIPT ?EUR" v4 (RESEARCH GRADE)
 -- ============================================================================
 -- Fixes vs v3:
---   • 250 events (was 50) — fixes NDCG@10 floor effect
---   • Vendor tier system: premium/standard/budget price + quality bands
---   • User-level train/val/test split (not interaction-level — no leakage)
---   • Archetype interaction counts match comments (lurker 5–15, power 150–350)
---   • Friday/Saturday evening temporal bias for session clustering
---   • Viral events (5%) spike to max_attendees; dud events (10%) stay sparse
---   • is_trending flag — weighted boost, not a filter bypass
---   • All undeclared variables fixed (quality_val, i_split, v_tier)
---   • No nested DECLARE blocks (unsupported in PL/pgSQL FOR loops)
---   • City affinity kept at 70% (90% breaks graph connectivity)
---   • Cold-start vendors 96–100 still excluded from service requests
+--   ?EUR? 250 events (was 50) ?EUR" fixes NDCG@10 floor effect
+--   ?EUR? Vendor tier system: premium/standard/budget price + quality bands
+--   ?EUR? User-level train/val/test split (not interaction-level ?EUR" no leakage)
+--   ?EUR? Archetype interaction counts match comments (lurker 5?EUR"15, power 150?EUR"350)
+--   ?EUR? Friday/Saturday evening temporal bias for session clustering
+--   ?EUR? Viral events (5%) spike to max_attendees; dud events (10%) stay sparse
+--   ?EUR? is_trending flag ?EUR" weighted boost, not a filter bypass
+--   ?EUR? All undeclared variables fixed (quality_val, i_split, v_tier)
+--   ?EUR? No nested DECLARE blocks (unsupported in PL/pgSQL FOR loops)
+--   ?EUR? City affinity kept at 70% (90% breaks graph connectivity)
+--   ?EUR? Cold-start vendors 96?EUR"100 still excluded from service requests
 -- ============================================================================
 
 DO $$
@@ -47,6 +47,9 @@ DECLARE
   session_ctr  INT;
   msg_template TEXT;
   quality_val  NUMERIC;
+  rat_val      SMALLINT;   -- vendor rating seed (1?EUR"5)
+  ven_idx      INT;        -- position in ven_ids_arr for tier detection
+  sr_rec       RECORD;     -- row variable for step 6c FOR loop
 
   start_dt   DATE;
   end_dt     DATE;
@@ -59,7 +62,7 @@ DECLARE
   svc_name   TEXT;
   v_tier     TEXT;
 
-  -- ── Name pools ─────────────────────────────────────────────────────────────
+  -- ?"EUR?"EUR Name pools ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
   first_names TEXT[] := ARRAY[
     'Aarav','Arjun','Vikram','Rohan','Karan','Nikhil','Aditya','Siddharth','Rahul','Pranav',
     'Ishaan','Vivek','Kunal','Ankit','Manish','Deepak','Rajan','Suresh','Ramesh','Harish',
@@ -111,7 +114,7 @@ DECLARE
     'Aspire Event Hall','The Pinnacle Centre','Radiance Banquet Hall','The Forum Events'
   ];
 
-  -- 50 event names — cycled across 250 events with a suffix to keep them distinct
+  -- 50 event names ?EUR" cycled across 250 events with a suffix to keep them distinct
   event_names TEXT[] := ARRAY[
     'Tech Summit','Startup Pitch Night','Cultural Fest','Food & Music Festival',
     'Design Conference','Digital Marketing Expo','Health & Wellness Fair','Comedy Night Live',
@@ -141,7 +144,7 @@ DECLARE
     'Showcasing contemporary and classical art from emerging and established artists.',
     'Build, break, and innovate over 24 hours of non-stop hacking.',
     'A spectacular showcase of dance forms from classical to contemporary.',
-    'Explore the city through the lens — a guided photography experience.',
+    'Explore the city through the lens ?EUR" a guided photography experience.',
     'Celebrate the written word with authors, poets, and storytellers.',
     'Conversations with successful entrepreneurs sharing real-world insights.',
     'The most glamorous fashion showcase of the season.',
@@ -200,7 +203,7 @@ DECLARE
     'Ace %s Solutions','Stellar %s Events'
   ];
 
-  -- ── Semantic tag pools keyed to event category ─────────────────────────────
+  -- ?"EUR?"EUR Semantic tag pools keyed to event category ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
   tech_tags     TEXT[] := ARRAY['technology','innovation','coding','startup','networking','education','business'];
   culture_tags  TEXT[] := ARRAY['culture','community','art','festival','family','social','outdoor'];
   music_tags    TEXT[] := ARRAY['music','entertainment','nightlife','social','community','festival','indoor'];
@@ -211,18 +214,18 @@ DECLARE
   sport_tags    TEXT[] := ARRAY['sports','outdoor','health','family','community','sustainability','social'];
   generic_tags  TEXT[] := ARRAY['networking','community','indoor','social','professional','education','entertainment'];
 
-  -- ── Service request message templates ─────────────────────────────────────
+  -- ?"EUR?"EUR Service request message templates ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
   request_messages TEXT[] := ARRAY[
     'Hi, we would love to have you for our upcoming event. Please let us know your availability.',
     'Hello! We came across your profile and think you would be a great fit for our event. Keen to connect?',
     'We are organising an event and your services match exactly what we need. Could you share a quote?',
-    'Hi there — our event is coming up and we are still looking for the right vendor. Are you available?',
+    'Hi there ?EUR" our event is coming up and we are still looking for the right vendor. Are you available?',
     'We have heard great things about your work. Would love to discuss how you can contribute to our event.',
     'Hello, we are in the planning stages and your category is a priority for us. Let us know your rates.',
     'Hi! Saw your profile and loved the quality of your previous work. Can we set up a quick call?',
     'We are a small team organising an event and would appreciate a reliable partner like you. Interested?',
     'Our event requires top-notch services and your profile stood out. Please respond at your earliest.',
-    'Hi — we have worked with vendors in your category before but are looking for fresh talent this time. You up for it?'
+    'Hi ?EUR" we have worked with vendors in your category before but are looking for fresh talent this time. You up for it?'
   ];
 
   f_name TEXT; l_name TEXT; full_n TEXT; uname TEXT; email_str TEXT;
@@ -277,12 +280,12 @@ FOR i IN 1..500 LOOP
   -- Primary interest: one tag from generic pool
   user_interest := generic_tags[floor(random() * array_length(generic_tags, 1)) + 1];
 
-  -- Archetype (stored — read back in step 7)
+  -- Archetype (stored ?EUR" read back in step 7)
   user_archetype := CASE
-    WHEN random() < 0.25 THEN 'lurker'   -- 25%: 5–15 interactions
-    WHEN random() < 0.65 THEN 'casual'   -- 40%: 20–50 interactions
-    WHEN random() < 0.90 THEN 'regular'  -- 25%: 60–120 interactions
-    ELSE                       'power'   -- 10%: 150–350 interactions
+    WHEN random() < 0.25 THEN 'lurker'   -- 25%: 5?EUR"15 interactions
+    WHEN random() < 0.65 THEN 'casual'   -- 40%: 20?EUR"50 interactions
+    WHEN random() < 0.90 THEN 'regular'  -- 25%: 60?EUR"120 interactions
+    ELSE                       'power'   -- 10%: 150?EUR"350 interactions
   END;
 
   -- Cohort: deterministic split so distribution is guaranteed
@@ -292,7 +295,7 @@ FOR i IN 1..500 LOOP
     ELSE               'churned'
   END;
 
-  -- Train/val/test split assigned at USER level — prevents interaction leakage.
+  -- Train/val/test split assigned at USER level ?EUR" prevents interaction leakage.
   -- 70% train / 15% val / 15% test
   user_split := CASE
     WHEN random() < 0.70 THEN 'train'
@@ -306,7 +309,7 @@ FOR i IN 1..500 LOOP
     confirmation_token, recovery_token, email_change_token_new, email_change
   ) VALUES (
     new_uid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-    email_str, '', NOW() - (random() * interval '180 days'),
+    email_str, crypt('Password123', gen_salt('bf')), NOW() - (random() * interval '180 days'),
     '{"provider":"email","providers":["email"]}'::jsonb,
     jsonb_strip_nulls(json_build_object(
       'role',             'customer',
@@ -328,8 +331,8 @@ FOR i IN 1..500 LOOP
   cust_ids := array_append(cust_ids, new_uid);
 END LOOP;
 
--- ── Organizers: 50 customers sampled across all cohorts ──────────────────────
--- 20 from new (1–100), 20 from active (101–380), 10 from churned (381–500)
+-- ?"EUR?"EUR Organizers: 50 customers sampled across all cohorts ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
+-- 20 from new (1?EUR"100), 20 from active (101?EUR"380), 10 from churned (381?EUR"500)
 SELECT array_agg(id ORDER BY random()) INTO org_ids
 FROM (
   (SELECT id FROM public.profiles
@@ -348,7 +351,7 @@ FROM (
    ORDER BY random() LIMIT 10)
 ) sub;
 
--- ── Sparse profiles: ~20% of users get incomplete optional fields ─────────────
+-- ?"EUR?"EUR Sparse profiles: ~20% of users get incomplete optional fields ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
 UPDATE public.profiles
 SET avatar_url = NULL, bio = NULL
 WHERE username LIKE 'seed_cust_%'
@@ -358,10 +361,10 @@ RAISE NOTICE 'Created 500 customers (split: 70/15/15 train/val/test), 50 organiz
 
 -- ============================================================================
 -- 2. CREATE 100 VENDOR USERS
---    Vendors 1–20: premium tier (high price, high quality)
---    Vendors 21–60: standard tier (mid price, mid quality)
---    Vendors 61–100: budget tier (low price, lower quality)
---    Vendors 96–100: cold-start (no service requests in step 6)
+--    Vendors 1?EUR"20: premium tier (high price, high quality)
+--    Vendors 21?EUR"60: standard tier (mid price, mid quality)
+--    Vendors 61?EUR"100: budget tier (low price, lower quality)
+--    Vendors 96?EUR"100: cold-start (no service requests in step 6)
 -- ============================================================================
 RAISE NOTICE 'Step 2: Creating 100 vendor users...';
 
@@ -386,7 +389,7 @@ FOR i IN 1..100 LOOP
     confirmation_token, recovery_token, email_change_token_new, email_change
   ) VALUES (
     new_uid, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated',
-    email_str, '', NOW() - (random() * interval '180 days'),
+    email_str, crypt('Password123', gen_salt('bf')), NOW() - (random() * interval '180 days'),
     '{"provider":"email","providers":["email"]}'::jsonb,
     jsonb_build_object('role','vendor','username',uname,'city',user_city,'tier',v_tier)::jsonb,
     NOW() - (random() * interval '180 days'), NOW(), '', '', '', ''
@@ -400,11 +403,11 @@ FOR i IN 1..100 LOOP
   ven_ids_arr := array_append(ven_ids_arr, new_uid);
 END LOOP;
 
-RAISE NOTICE 'Created 100 vendors (20 premium / 40 standard / 40 budget; 96–100 cold-start).';
+RAISE NOTICE 'Created 100 vendors (20 premium / 40 standard / 40 budget; 96?EUR"100 cold-start).';
 
 -- ============================================================================
--- 3. CREATE ~500 VENDOR SERVICES (4–6 per vendor)
---    Price and quality banded by tier — gives MOEA/D real cost-quality spread.
+-- 3. CREATE ~500 VENDOR SERVICES (4?EUR"6 per vendor)
+--    Price and quality banded by tier ?EUR" gives MOEA/D real cost-quality spread.
 --    No nested DECLARE blocks; tier derived from loop index directly.
 -- ============================================================================
 RAISE NOTICE 'Step 3: Creating vendor services...';
@@ -447,9 +450,9 @@ FOR i IN 1..array_length(ven_ids_arr, 1) LOOP
     END;
 
     -- Tier multiplier on price and quality range
-    -- Premium: 1.8x price, quality 0.85–0.98
-    -- Standard: 1.0x price, quality 0.55–0.84
-    -- Budget:   0.6x price, quality 0.25–0.59
+    -- Premium: 1.8x price, quality 0.85?EUR"0.98
+    -- Standard: 1.0x price, quality 0.55?EUR"0.84
+    -- Budget:   0.6x price, quality 0.25?EUR"0.59
     IF v_tier = 'premium' THEN
       base_p      := base_p * 1.8;
       quality_val := (random() * 0.13 + 0.85)::NUMERIC;
@@ -479,11 +482,11 @@ RAISE NOTICE 'Created % vendor services across 3 quality/price tiers.', array_le
 
 -- ============================================================================
 -- 4. CREATE 250 EVENTS
---    • Names cycled from 50-name pool with a city suffix to keep them distinct
---    • 5% flagged is_trending — these get a weighted interaction boost in step 7,
+--    ?EUR? Names cycled from 50-name pool with a city suffix to keep them distinct
+--    ?EUR? 5% flagged is_trending ?EUR" these get a weighted interaction boost in step 7,
 --      NOT a filter bypass (trending events still respect city/interest affinity)
---    • Weekend-biased dates, category-aware times, budget tied to event type
---    • Semantic tags matched to event category
+--    ?EUR? Weekend-biased dates, category-aware times, budget tied to event type
+--    ?EUR? Semantic tags matched to event category
 -- ============================================================================
 RAISE NOTICE 'Step 4: Creating 250 events...';
 
@@ -501,14 +504,14 @@ FOR i IN 1..250 LOOP
   city  := cities[floor(random() * array_length(cities, 1)) + 1];
   vname := venue_names[floor(random() * array_length(venue_names, 1)) + 1];
 
-  -- ── Weekend-biased date ───────────────────────────────────────────────────
+  -- ?"EUR?"EUR Weekend-biased date ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
   start_dt := CURRENT_DATE + (floor(random() * 120) - 30)::INT;
   IF random() < 0.60 THEN
     start_dt := start_dt + ((6 - EXTRACT(DOW FROM start_dt)::INT + 7) % 7)::INT;
   END IF;
   end_dt := start_dt + (floor(random() * 2))::INT;
 
-  -- ── Category-aware start/end time ─────────────────────────────────────────
+  -- ?"EUR?"EUR Category-aware start/end time ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
   start_time := CASE
     WHEN ename ILIKE '%night%'    OR ename ILIKE '%comedy%'   OR ename ILIKE '%music%'
       OR ename ILIKE '%DJ%'       OR ename ILIKE '%open mic%' OR ename ILIKE '%indie%'
@@ -530,7 +533,7 @@ FOR i IN 1..250 LOOP
     ELSE '20:00'
   END;
 
-  -- ── Budget tied to event type ─────────────────────────────────────────────
+  -- ?"EUR?"EUR Budget tied to event type ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
   budget_val := CASE
     WHEN ename ILIKE '%gala%'    OR ename ILIKE '%summit%'  OR ename ILIKE '%expo%'
       OR ename ILIKE '%concert%' OR ename ILIKE '%fashion%' OR ename ILIKE '%launch%'
@@ -545,7 +548,7 @@ FOR i IN 1..250 LOOP
     ELSE (floor(random() * 15) + 5) * 10000
   END;
 
-  -- ── Semantic tags matched to event category ───────────────────────────────
+  -- ?"EUR?"EUR Semantic tags matched to event category ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
   tag_pool_for_event := CASE
     WHEN ename ILIKE '%tech%'     OR ename ILIKE '%summit%'    OR ename ILIKE '%hack%'
       OR ename ILIKE '%AI%'       OR ename ILIKE '%coding%'    OR ename ILIKE '%blockchain%'
@@ -616,11 +619,11 @@ RAISE NOTICE 'Created % events (5%% trending).', array_length(evt_ids, 1);
 
 -- ============================================================================
 -- 5. BOOKINGS
---    • Viral events (5% chance per booking loop): spike toward max_attendees
---    • Dud events (10% chance): mostly cancellations — creates attendance outliers
+--    ?EUR? Viral events (5% chance per booking loop): spike toward max_attendees
+--    ?EUR? Dud events (10% chance): mostly cancellations ?EUR" creates attendance outliers
 --      for demand forecasting to learn from
---    • Regular bookings follow the same 75/15/10 confirmed/waitlist/cancelled split
---    • Correlated view + rsvp always precede a booking (realistic funnel)
+--    ?EUR? Regular bookings follow the same 75/15/10 confirmed/waitlist/cancelled split
+--    ?EUR? Correlated view + rsvp always precede a booking (realistic funnel)
 -- ============================================================================
 RAISE NOTICE 'Step 5: Creating bookings...';
 
@@ -667,7 +670,7 @@ FOR i IN 1..array_length(cust_ids, 1) LOOP
   END LOOP;
 END LOOP;
 
--- ── Booking lifecycle mutations ───────────────────────────────────────────────
+-- ?"EUR?"EUR Booking lifecycle mutations ?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR?"EUR
 -- 8% of confirmed bookings get cancelled (churn simulation)
 UPDATE bookings
 SET status = 'cancelled'
@@ -687,9 +690,9 @@ RAISE NOTICE 'Bookings created with viral/dud variance for forecasting signal.';
 
 -- ============================================================================
 -- 6. SERVICE REQUESTS
---    • Varied message templates
---    • 70% city-preferring, quality-biased vendor selection
---    • Cold-start guard: vendors 96–100 receive zero requests
+--    ?EUR? Varied message templates
+--    ?EUR? 70% city-preferring, quality-biased vendor selection
+--    ?EUR? Cold-start guard: vendors 96?EUR"100 receive zero requests
 -- ============================================================================
 RAISE NOTICE 'Step 6: Creating service requests...';
 
@@ -701,7 +704,21 @@ FOR i IN 1..array_length(org_ids, 1) LOOP
   FROM auth.users au WHERE au.id = organizer_uid;
 
   FOR j IN 1..( floor(random() * 6) + 3 )::INT LOOP
-    evt_id       := evt_ids[floor(random() * array_length(evt_ids, 1)) + 1];
+    -- Pick an event this organizer actually OWNS (80% of the time).
+    -- Fallback to any event if they have none or the 20% random path fires.
+    evt_id := NULL;
+    IF random() < 0.80 THEN
+      SELECT e.id INTO evt_id
+      FROM events e
+      WHERE e.user_id = organizer_uid
+      ORDER BY random()
+      LIMIT 1;
+    END IF;
+    -- If no own event found (or 20% path), use global pool
+    IF evt_id IS NULL THEN
+      evt_id := evt_ids[floor(random() * array_length(evt_ids, 1)) + 1];
+    END IF;
+
     v_created    := NOW() - (POWER(random(), 1.5) * interval '60 days');
     msg_template := request_messages[floor(random() * array_length(request_messages, 1)) + 1];
 
@@ -758,16 +775,98 @@ END LOOP;
 RAISE NOTICE 'Service requests created.';
 
 -- ============================================================================
+-- 6b. POPULATE event_vendors FROM ACCEPTED SERVICE REQUESTS
+--     This fixes the Pro-Team tab being empty. event_vendors is the formal
+--     roster shown to organizers. We promote all accepted requests into it.
+-- ============================================================================
+RAISE NOTICE 'Step 6b: Populating event_vendors from accepted requests...';
+
+INSERT INTO event_vendors (id, event_id, vendor_id, service_id, request_id, hired_at)
+SELECT
+  uuid_generate_v4(),
+  sr.event_id,
+  sr.vendor_id,
+  sr.service_id,
+  sr.id,
+  sr.updated_at
+FROM service_requests sr
+WHERE sr.requester_id = ANY(org_ids)
+  AND sr.status = 'accepted'
+ON CONFLICT (event_id, service_id) DO NOTHING;
+
+RAISE NOTICE 'event_vendors populated.';
+
+-- ============================================================================
+-- 6c. SEED VENDOR RATINGS
+--     Organizers rate vendors for completed events (past date).
+--     Ratings are tier-biased: premium vendors get 4?EUR"5 stars, budget 2?EUR"3.
+--     Triggers auto-update vendor_services.rating.
+-- ============================================================================
+RAISE NOTICE 'Step 6c: Seeding vendor ratings...';
+
+-- Clean up any prior seed ratings
+DELETE FROM vendor_ratings
+WHERE rater_id = ANY(org_ids);
+
+FOR sr_rec IN (
+  SELECT sr.id AS sr_id, sr.service_id, sr.vendor_id, sr.event_id, sr.requester_id,
+         e.start_date
+  FROM service_requests sr
+  JOIN events e ON e.id = sr.event_id
+  WHERE sr.requester_id = ANY(org_ids)
+    AND sr.status IN ('accepted', 'completed')
+    AND e.start_date < CURRENT_DATE
+) LOOP
+  -- 70% chance they actually left a rating
+  IF random() > 0.30 THEN
+    -- Tier-biased rating: derive from vendor position in ven_ids_arr
+    ven_idx := array_position(ven_ids_arr, sr_rec.vendor_id);
+    rat_val := CASE
+      WHEN ven_idx IS NOT NULL AND ven_idx <= 20 THEN (floor(random() * 2) + 4)::SMALLINT
+      WHEN ven_idx IS NOT NULL AND ven_idx <= 60 THEN (floor(random() * 2) + 3)::SMALLINT
+      ELSE                                             (floor(random() * 2) + 2)::SMALLINT
+    END;
+
+    INSERT INTO vendor_ratings (id, service_request_id, event_id, vendor_id, service_id, rater_id, rating, created_at)
+    VALUES (
+      uuid_generate_v4(),
+      sr_rec.sr_id,
+      sr_rec.event_id,
+      sr_rec.vendor_id,
+      sr_rec.service_id,
+      sr_rec.requester_id,
+      rat_val,
+      sr_rec.start_date::TIMESTAMPTZ + interval '1 day'
+    )
+    ON CONFLICT DO NOTHING;
+  END IF;
+END LOOP;
+
+-- Backfill vendor_services.rating from the seeded ratings
+UPDATE vendor_services vs
+SET rating = sub.avg_rating
+FROM (
+  SELECT service_id, ROUND(AVG(rating)::NUMERIC, 2) AS avg_rating
+  FROM vendor_ratings
+  GROUP BY service_id
+) sub
+WHERE vs.id = sub.service_id;
+
+RAISE NOTICE 'Vendor ratings seeded and vendor_services.rating backfilled.';
+
+
+
+-- ============================================================================
 -- 7. USER INTERACTION SIGNALS
---    • Archetype determines interaction count (values match comments)
---    • Cohort anchors session recency
---    • Session clustering: 3–8 actions per burst, then new session
---    • 40% chance each new session falls on a Friday/Saturday evening (temporal bias)
---    • City/interest affinity at 70% — keeps graph connected across cities
---    • Trending events get a 20% selection boost (weighted, not a bypass)
---    • Steep funnel: view 40% / favorite 30% / vendor_view 15% / rsvp 10% / confirmed 5%
---    • 10% of views generate a 'not_interested' negative signal
---    • Split tag copied from user-level assignment (no leakage)
+--    ?EUR? Archetype determines interaction count (values match comments)
+--    ?EUR? Cohort anchors session recency
+--    ?EUR? Session clustering: 3?EUR"8 actions per burst, then new session
+--    ?EUR? 40% chance each new session falls on a Friday/Saturday evening (temporal bias)
+--    ?EUR? City/interest affinity at 70% ?EUR" keeps graph connected across cities
+--    ?EUR? Trending events get a 20% selection boost (weighted, not a bypass)
+--    ?EUR? Steep funnel: view 40% / favorite 30% / vendor_view 15% / rsvp 10% / confirmed 5%
+--    ?EUR? 10% of views generate a 'not_interested' negative signal
+--    ?EUR? Split tag copied from user-level assignment (no leakage)
 -- ============================================================================
 RAISE NOTICE 'Step 7: Creating interaction signals...';
 
@@ -784,10 +883,10 @@ FOR i IN 1..array_length(cust_ids, 1) LOOP
 
   -- Interaction counts matching archetype comments
   num_ints := CASE user_archetype
-    WHEN 'lurker'  THEN floor(random() * 11)  + 5    -- 5–15
-    WHEN 'casual'  THEN floor(random() * 31)  + 20   -- 20–50
-    WHEN 'regular' THEN floor(random() * 61)  + 60   -- 60–120
-    ELSE                floor(random() * 201) + 150  -- 150–350
+    WHEN 'lurker'  THEN floor(random() * 11)  + 5    -- 5?EUR"15
+    WHEN 'casual'  THEN floor(random() * 31)  + 20   -- 20?EUR"50
+    WHEN 'regular' THEN floor(random() * 61)  + 60   -- 60?EUR"120
+    ELSE                floor(random() * 201) + 150  -- 150?EUR"350
   END;
 
   session_base := CASE user_cohort
@@ -800,7 +899,7 @@ FOR i IN 1..array_length(cust_ids, 1) LOOP
 
   FOR j IN 1..num_ints LOOP
 
-    -- New session every 3–8 interactions
+    -- New session every 3?EUR"8 interactions
     session_ctr := session_ctr + 1;
     IF session_ctr > (floor(random() * 6) + 3)::INT THEN
       session_base := CASE user_cohort
@@ -809,18 +908,18 @@ FOR i IN 1..array_length(cust_ids, 1) LOOP
         ELSE               NOW() - (interval '60 days' + random() * interval '120 days')
       END;
 
-      -- 40% of new sessions: bias toward Friday/Saturday evening (18:00–23:59)
+      -- 40% of new sessions: bias toward Friday/Saturday evening (18:00?EUR"23:59)
       -- This creates realistic temporal spikes for demand forecasting
       IF random() < 0.40 THEN
         session_base := date_trunc('week', session_base)
           + (floor(random() * 2) + 4) * interval '1 day'   -- day 4=Fri, 5=Sat
-          + (floor(random() * 6) + 18) * interval '1 hour'; -- 18:00–23:00
+          + (floor(random() * 6) + 18) * interval '1 hour'; -- 18:00?EUR"23:00
       END IF;
 
       session_ctr := 1;
     END IF;
 
-    -- Small jitter within session (0–20 minutes)
+    -- Small jitter within session (0?EUR"20 minutes)
     v_created := session_base + (random() * interval '20 minutes');
 
     -- Event selection: 70% city/interest affinity, 30% random
@@ -941,7 +1040,7 @@ SET max_attendees = attendee_count
 WHERE id IN (evt_ids[1], evt_ids[2])
   AND attendee_count > 0;
 
--- 1 cancelled event (bookings intact — tests cancellation handling)
+-- 1 cancelled event (bookings intact ?EUR" tests cancellation handling)
 UPDATE events
 SET event_status = 'cancelled'
 WHERE id = evt_ids[3];
@@ -974,7 +1073,7 @@ RAISE NOTICE 'Edge cases injected.';
 -- 11. SUMMARY
 -- ============================================================================
 RAISE NOTICE '=================================================================';
-RAISE NOTICE 'RESEARCH SEED COMPLETE — v4 (Research Grade)';
+RAISE NOTICE 'RESEARCH SEED COMPLETE ?EUR" v4 (Research Grade)';
 RAISE NOTICE '-----------------------------------------------------------------';
 RAISE NOTICE 'profiles (customers)    : %', (SELECT count(*) FROM public.profiles WHERE username LIKE 'seed_cust_%');
 RAISE NOTICE 'profiles (vendors)      : %', (SELECT count(*) FROM public.profiles WHERE username LIKE 'seed_ven_%');
@@ -1010,8 +1109,8 @@ END;
 RAISE NOTICE '-----------------------------------------------------------------';
 RAISE NOTICE 'Cohorts      : new(~20%%) / active(~56%%) / churned(~24%%)';
 RAISE NOTICE 'Archetypes   : ~25%% lurker / ~40%% casual / ~25%% regular / ~10%% power';
-RAISE NOTICE 'Vendor tiers : 20 premium / 40 standard / 40 budget (96–100 cold-start)';
-RAISE NOTICE 'Splits       : 70/15/15 train/val/test — assigned at USER level';
+RAISE NOTICE 'Vendor tiers : 20 premium / 40 standard / 40 budget (96?EUR"100 cold-start)';
+RAISE NOTICE 'Splits       : 70/15/15 train/val/test ?EUR" assigned at USER level';
 RAISE NOTICE 'Edge cases   : 2 sold-out / 1 cancelled / 5 dud events';
 RAISE NOTICE '             : 3 churned organizers / 3 ultra-lurkers';
 RAISE NOTICE 'Temporal     : 40%% Friday/Saturday evening session bias';
