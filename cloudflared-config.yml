@@ -1,0 +1,15 @@
+tunnel: local-supabase
+credentials-file: C:\Users\GIRISH R V\.cloudflared\cert.pem
+
+ingress:
+  - hostname: "*.trycloudflare.com"
+    service: http://127.0.0.1:54321
+    originRequest:
+      httpHostHeader: ""
+  - service: http_status:404
+
+# NOTE: When using quick tunnels (cloudflared tunnel --url), use this instead:
+# cloudflared tunnel --url http://127.0.0.1:54321 \
+#   --response-header "Access-Control-Allow-Origin: https://my-app-swart-kappa-40.vercel.app" \
+#   --response-header "Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE, PATCH" \
+#   --response-header "Access-Control-Allow-Headers: authorization, x-client-info, apikey, content-type"
