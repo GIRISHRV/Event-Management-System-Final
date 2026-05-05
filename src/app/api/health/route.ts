@@ -2,21 +2,20 @@ import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
+interface CheckResult {
+  status: string;
+  httpStatus?: number;
+  url?: string;
+  error?: string;
+}
+
 export async function GET() {
   const tunnelUrl = process.env.SUPABASE_TUNNEL_URL;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const result: Record<string, unknown> = {
-    timestamp: new Date().toISOString(),
-    env: {
-      SUPABASE_TUNNEL_URL: tunnelUrl ? `${tunnelUrl.slice(0, 40)}...` : "NOT SET",
-      NEXT_PUBLIC_SUPABASE_URL: supabaseUrl ?? "NOT SET",
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey ? "SET" : "NOT SET",
-    },
-    tunnel: { status: "unchecked" },
-    proxy: { status: "unchecked" },
-  };
+  let tunnelResult: CheckResult = { status: "unchecked" };
+  let proxyResult: CheckResult = { status: "unchecked" };
 
   // 1. Check tunnel directly (server-side, no CORS)
   if (tunnelUrl && anonKey) {
@@ -25,15 +24,15 @@ export async function GET() {
         headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
         signal: AbortSignal.timeout(8000),
       });
-      result.tunnel = {
+      tunnelResult = {
         status: res.ok ? "✅ connected" : `❌ HTTP ${res.status}`,
         httpStatus: res.status,
       };
     } catch (e) {
-      result.tunnel = { status: "❌ unreachable", error: String(e) };
+      tunnelResult = { status: "❌ unreachable", error: String(e) };
     }
   } else {
-    result.tunnel = { status: "⚠️ SUPABASE_TUNNEL_URL not set" };
+    tunnelResult = { status: "⚠️ SUPABASE_TUNNEL_URL not set" };
   }
 
   // 2. Check proxy path (vercel → tunnel rewrite)
@@ -46,22 +45,33 @@ export async function GET() {
         headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
         signal: AbortSignal.timeout(8000),
       });
-      result.proxy = {
+      proxyResult = {
         status: res.ok ? "✅ connected" : `❌ HTTP ${res.status}`,
         httpStatus: res.status,
         url: `${proxyBase}/rest/v1/`,
       };
     } catch (e) {
-      result.proxy = { status: "❌ unreachable", error: String(e) };
+      proxyResult = { status: "❌ unreachable", error: String(e) };
     }
   } else {
-    result.proxy = { status: "⚠️ NEXT_PUBLIC_SUPABASE_URL not set" };
+    proxyResult = { status: "⚠️ NEXT_PUBLIC_SUPABASE_URL not set" };
   }
 
   const allGood =
-    String(result.tunnel.status).startsWith("✅") &&
-    (String(result.proxy.status).startsWith("✅") ||
-      String(result.proxy.status).startsWith("⚠️"));
+    tunnelResult.status.startsWith("✅") &&
+    (proxyResult.status.startsWith("✅") || proxyResult.status.startsWith("⚠️"));
 
-  return NextResponse.json(result, { status: allGood ? 200 : 503 });
+  return NextResponse.json(
+    {
+      timestamp: new Date().toISOString(),
+      env: {
+        SUPABASE_TUNNEL_URL: tunnelUrl ? `${tunnelUrl.slice(0, 40)}...` : "NOT SET",
+        NEXT_PUBLIC_SUPABASE_URL: supabaseUrl ?? "NOT SET",
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: anonKey ? "SET" : "NOT SET",
+      },
+      tunnel: tunnelResult,
+      proxy: proxyResult,
+    },
+    { status: allGood ? 200 : 503 }
+  );
 }
