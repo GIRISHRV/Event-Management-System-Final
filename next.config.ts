@@ -12,6 +12,12 @@ const nextConfig: NextConfig = {
     const tunnelUrl = process.env.SUPABASE_TUNNEL_URL;
     if (!tunnelUrl) return [];
     return [
+      // Root proxy path (no trailing slash)
+      {
+        source: "/supabase-proxy",
+        destination: `${tunnelUrl}/`,
+      },
+      // All sub-paths
       {
         source: "/supabase-proxy/:path*",
         destination: `${tunnelUrl}/:path*`,
