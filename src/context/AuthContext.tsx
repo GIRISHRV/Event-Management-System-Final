@@ -93,14 +93,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      await supabase.auth.signOut();
-    } catch (err) {
-      logger.error("[AuthContext] Sign out error", err);
-    } finally {
+      // Clear local state first
       setSession(null);
       setUserProfile(null);
-      // Force a full page reload/redirect to clear all states and move away from protected routes
-      window.location.href = "/";
+
+      // Attempt remote logout (best effort - may fail if navigation aborts it)
+      try {
+        await supabase.auth.signOut();
+      } catch (signOutErr) {
+        // Log but don't throw - user is logged out locally regardless
+        logger.warn(
+          "[AuthContext] Remote logout failed (continuing with redirect):",
+          signOutErr instanceof Error ? signOutErr.message : String(signOutErr)
+        );
+      }
+    } finally {
+      // Small delay to let the logout request complete before redirect
+      setTimeout(() => {
+        window.location.href = "/";
+      }, 100);
     }
   };
 
