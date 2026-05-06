@@ -23,6 +23,7 @@ export default function SignInPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    let isSuccess = false;
 
     try {
       const { profile } = await signIn(email, password);
@@ -39,11 +40,14 @@ export default function SignInPage() {
       } else {
         router.push("/customer-dashboard");
       }
+      isSuccess = true;
     } catch (err: unknown) {
       // ✅ err: unknown — type-narrowed before access, no implicit any
       toastError(err instanceof Error ? err.message : "Invalid credentials. Please try again.");
     } finally {
-      setIsLoading(false);
+      if (!isSuccess) {
+        setIsLoading(false);
+      }
     }
   };
 

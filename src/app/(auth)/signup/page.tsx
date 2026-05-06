@@ -54,6 +54,7 @@ export default function SignUpPage() {
 
   const onSubmit = async (data: SignUpFormData) => {
     setIsLoading(true);
+    let isSuccess = false;
     try {
       // 1. Create the auth user
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
@@ -93,11 +94,14 @@ export default function SignUpPage() {
       // 3. Redirect to verify-email page — NOT to /signin
       // User cannot sign in until they verify their email.
       router.replace(`/verify-email?email=${encodeURIComponent(data.email)}`);
+      isSuccess = true;
 
     } catch (err: unknown) {
       toastError(getFriendlyError(err instanceof Error ? err.message : ""));
     } finally {
-      setIsLoading(false);
+      if (!isSuccess) {
+        setIsLoading(false);
+      }
     }
   };
 
