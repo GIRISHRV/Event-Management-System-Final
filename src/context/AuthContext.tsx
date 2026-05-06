@@ -106,8 +106,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    
+    // Wait for session to be set in context (max 5 seconds)
+    const startTime = Date.now();
+    while (!session && Date.now() - startTime < 5000) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    if (!session) {
+      throw new Error("Session not established. Please try again.");
+    }
   };
 
   return (

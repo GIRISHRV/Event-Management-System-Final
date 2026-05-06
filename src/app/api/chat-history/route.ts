@@ -146,24 +146,41 @@ export async function POST(request: NextRequest) {
       const { error: updateError } = await supabase
         .from("chat_history")
         .update({ messages, updated_at: now })
-        .eq("id", existingData.id);
+        .eq("id", existingData.id)
+        .select() // Force return of updated record
+        .single();
 
       if (updateError) {
-        logger.error("[chat-history POST] Update failed:", updateError.message);
+        logger.error("[chat-history POST] Update failed:", {
+          code: updateError.code,
+          message: updateError.message,
+          details: updateError.details,
+          hint: updateError.hint
+        });
         throw new Error(`Update failed: ${updateError.message}`);
       }
     } else {
       logger.info(`[chat-history POST] Creating new record for user: ${user.id}, event: ${eventId}`);
-      const { error: insertError } = await supabase.from("chat_history").insert({
-        user_id: user.id,
-        event_id: eventId,
-        messages,
-        created_at: now,
-        updated_at: now,
-      });
+      const { data: insertResult, error: insertError } = await supabase
+        .from("chat_history")
+        .insert({
+          user_id: user.id,
+          event_id: eventId,
+          messages,
+          created_at: now,
+          updated_at: now,
+        })
+        .select()
+        .single();
 
       if (insertError) {
-        logger.error("[chat-history POST] Insert failed:", insertError.message);
+        logger.error("[chat-history POST] Insert failed:", {
+          code: insertError.code,
+          message: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          payload: { user_id: user.id, event_id: eventId, messageCount: messages.length }
+        });
         throw new Error(`Insert failed: ${insertError.message}`);
       }
     }

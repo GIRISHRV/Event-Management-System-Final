@@ -12,7 +12,7 @@ import { BackgroundEffects } from "@/components/ui/BackgroundEffects";
 
 export default function SignInPage() {
   const router = useRouter();
-  const { signIn } = useAuth();
+  const { signIn, userProfile } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
 
   const [email, setEmail] = useState("");
@@ -26,7 +26,15 @@ export default function SignInPage() {
     try {
       await signIn(email, password);
       toastSuccess("Welcome back to Event MS!");
-      router.push("/");
+      
+      // Redirect to appropriate dashboard based on role
+      if (userProfile?.role === "admin") {
+        router.push("/admin-dashboard");
+      } else if (userProfile?.role === "vendor") {
+        router.push("/vendor-dashboard");
+      } else {
+        router.push("/customer-dashboard");
+      }
     } catch (err: unknown) {
       // ✅ err: unknown — type-narrowed before access, no implicit any
       toastError(err instanceof Error ? err.message : "Invalid credentials. Please try again.");
