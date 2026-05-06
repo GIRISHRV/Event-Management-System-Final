@@ -6,6 +6,7 @@ A full-stack event management platform built with Next.js, React 19, and Supabas
 
 - Website: [EventMS Live Site](https://my-app-swart-kappa-40.vercel.app)
 - Demo Video: [Demo_Video.mp4](Demo_Video.mp4)
+- Demo Video YT Link: [Youtube](https://www.youtube.com/watch?v=5r1V5bJS0WI)
 - Presentation PPTX: [An-Effective-Smart-Event-Planner-and-Cost-Management-System.pptx](An-Effective-Smart-Event-Planner-and-Cost-Management-System.pptx)
 - Project Report (PCL 6): [pcl 6 report.pdf](pcl%206%20report.pdf)
 - Research Paper: [EVENTMS_AN_EFFECTIVE_SMART_EVENT_PLANNER_AND_COST_MANAGEMENT_SYSTEM.pdf](EVENTMS_AN_EFFECTIVE_SMART_EVENT_PLANNER_AND_COST_MANAGEMENT_SYSTEM.pdf)
@@ -16,6 +17,7 @@ A full-stack event management platform built with Next.js, React 19, and Supabas
 ## User Roles and Features
 
 ### Customer / Organizer
+
 - **My Events** — Create, edit, and delete events with rich details (schedules, performers, FAQs, gallery, venue map)
 - **Discover** — Browse public events with AI-powered recommendations (XSimGCL for returning users, GNN-CF for new users)
 - **Bookings** — RSVP to events, manage waitlist status, and track confirmed bookings
@@ -28,11 +30,13 @@ A full-stack event management platform built with Next.js, React 19, and Supabas
 - **AI Chatbot** — Context-aware event assistant powered by HuggingFace LLM
 
 ### Vendor
+
 - **Service Listings** — Create and manage service offerings with pricing, category, and images
 - **Incoming Requests** — Accept, reject, or cancel service requests from event organizers
 - **Earnings Overview** — Track bookings and revenue from completed services
 
 ### Admin
+
 - **Algorithm Lab** — Run and evaluate all five ML algorithms with configurable parameters
 - **BPR Training** — Trigger Bayesian Personalized Ranking embedding training for XSimGCL
 - **Export Reports** — Export algorithm results as JSON, CSV, or PDF for research paper tables
@@ -43,7 +47,7 @@ A full-stack event management platform built with Next.js, React 19, and Supabas
 ## ML Algorithm Layer
 
 | Algorithm | Purpose | Trigger |
-|---|---|---|
+| --- | --- | --- |
 | XSimGCL | Collaborative filtering recommendations (warm users) | ≥ 3 user interactions |
 | GNN-CF | Cross-domain cold-start recommendations | < 3 user interactions |
 | MOEA/D-DRA-NEF | Multi-objective budget optimization (Pareto bundles) | Budget Planner request |
@@ -94,7 +98,7 @@ Navigate to `http://localhost:3000`
 Copy `.env.example` to `.env.local` and set the following:
 
 | Variable | Required | Description |
-|---|---|---|
+| --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL (safe to expose client-side) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key — RLS policies enforce access control |
 | `HF_TOKEN` | Yes | HuggingFace API token for the AI chatbot LLM (server-side only) |
@@ -107,7 +111,7 @@ Copy `.env.example` to `.env.local` and set the following:
 
 ## Project Structure
 
-```
+```text
 eventms/
 ├── src/
 │   ├── app/                # Next.js App Router — pages, layouts, and API routes
@@ -140,7 +144,7 @@ eventms/
 ## Tech Stack
 
 | Layer | Technology | Version |
-|---|---|---|
+| --- | --- | --- |
 | Framework | Next.js | ^16.2.1 |
 | UI Library | React / React DOM | 19.2.0 |
 | Database / Auth / Storage | Supabase (`@supabase/supabase-js`) | ^2.81.1 |
