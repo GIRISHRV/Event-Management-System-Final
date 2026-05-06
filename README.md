@@ -2,6 +2,15 @@
 
 A full-stack event management platform built with Next.js, React 19, and Supabase. EventMS serves three distinct user roles — customer/organizer, vendor, and admin — and integrates five ML algorithms for smart recommendations, budget optimization, attendance forecasting, and community detection, alongside an AI-powered event chatbot.
 
+## Project Links
+
+- Website: [EventMS Live Site](https://my-app-swart-kappa-40.vercel.app)
+- Demo Video: [Demo_Video.mp4](Demo_Video.mp4)
+- Presentation PPTX: [An-Effective-Smart-Event-Planner-and-Cost-Management-System.pptx](An-Effective-Smart-Event-Planner-and-Cost-Management-System.pptx)
+- Project Report (PCL 6): [pcl 6 report.pdf](pcl%206%20report.pdf)
+- Research Paper: [EVENTMS_AN_EFFECTIVE_SMART_EVENT_PLANNER_AND_COST_MANAGEMENT_SYSTEM.pdf](EVENTMS_AN_EFFECTIVE_SMART_EVENT_PLANNER_AND_COST_MANAGEMENT_SYSTEM.pdf)
+- DOI: [https://doi.org/10.5281/zenodo.20046610](https://doi.org/10.5281/zenodo.20046610)
+
 ---
 
 ## User Roles and Features
