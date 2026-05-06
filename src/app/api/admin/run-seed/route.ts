@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const sqlCandidates = [
-      join(process.cwd(), "supabase", "migrations", "seed_full_demo.sql"),
-      join(process.cwd(), "supabase", "seed_full_demo.sql"),
+      join(/*turbopackIgnore: true*/ process.cwd(), "supabase", "migrations", "seed_full_demo.sql"),
+      join(/*turbopackIgnore: true*/ process.cwd(), "supabase", "seed_full_demo.sql"),
     ];
 
     let sql: string | null = null;

@@ -36,9 +36,14 @@ export function VendorMarketplace() {
       implicit_score: 0.2,
       vendor_service_id: service.id,
     }, { onConflict: "user_id,interaction_type,vendor_service_id" }).then(() => {
-      supabase.from("algorithm_results").delete()
-        .eq("user_id", userId).eq("algorithm_type", "gnn-cf")
-        .catch(() => undefined);
+      void (async () => {
+        try {
+          await supabase.from("algorithm_results").delete()
+            .eq("user_id", userId).eq("algorithm_type", "gnn-cf");
+        } catch {
+          // best-effort cache invalidation
+        }
+      })();
     });
   }, [session?.user?.id]);
 

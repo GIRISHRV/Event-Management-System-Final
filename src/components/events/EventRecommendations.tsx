@@ -21,9 +21,14 @@ function trackRecommendationClick(userId: string, eventId: string) {
     implicit_score: 0.5,
   }, { onConflict: "user_id,event_id,interaction_type" }).then(() => {
     // Invalidate xsimgcl cache for this user
-    supabase.from("algorithm_results").delete()
-      .eq("user_id", userId).eq("algorithm_type", "xsimgcl")
-      .catch(() => undefined);
+    void (async () => {
+      try {
+        await supabase.from("algorithm_results").delete()
+          .eq("user_id", userId).eq("algorithm_type", "xsimgcl");
+      } catch {
+        // best-effort cache invalidation
+      }
+    })();
   });
 }
 
