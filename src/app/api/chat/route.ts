@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { callHuggingFace, isHuggingFaceAvailable } from "@/lib/huggingface";
+import { callHuggingFace } from "@/lib/huggingface";
 import { DEFAULT_HF_MODEL } from "@/lib/constants";
 import { logger } from "@/lib/logger";
 import { handleApiError, validationError } from "@/lib/error-handler";
@@ -51,21 +51,6 @@ FAQs: ${JSON.stringify(data.faqs || [])}`;
       }
     }
 
-    const hfAvailable = await isHuggingFaceAvailable();
-    if (!hfAvailable) {
-      return NextResponse.json({
-        success: true,
-        response: {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: fallbackAssistantMessage(question),
-          source: "local",
-          responseTime: 0,
-          timestamp: new Date().toISOString(),
-        },
-      } as ChatApiResponse);
-    }
-
     const systemPrompt = `You are a helpful AI assistant for EventMS, an event management platform.
 Only provide information about events and event planning. Keep responses helpful and friendly.
 
@@ -86,7 +71,7 @@ Instructions:
     ];
 
     const startTime = Date.now();
-    const answer = await callHuggingFace(hfMessages, systemPrompt, process.env.HF_MODEL || DEFAULT_HF_MODEL);
+  const answer = await callHuggingFace(hfMessages, systemPrompt, process.env.HF_MODEL || DEFAULT_HF_MODEL);
     const latency = Date.now() - startTime;
 
     logger.info(`[Chat API] response in ${latency}ms`);

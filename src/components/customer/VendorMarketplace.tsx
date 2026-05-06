@@ -37,7 +37,8 @@ export function VendorMarketplace() {
       vendor_service_id: service.id,
     }, { onConflict: "user_id,interaction_type,vendor_service_id" }).then(() => {
       supabase.from("algorithm_results").delete()
-        .eq("user_id", userId).eq("algorithm_type", "gnn-cf");
+        .eq("user_id", userId).eq("algorithm_type", "gnn-cf")
+        .catch(() => undefined);
     });
   }, [session?.user?.id]);
 

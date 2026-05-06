@@ -146,7 +146,8 @@ export const bookingsService = {
           },
           { onConflict: "user_id,event_id,interaction_type", ignoreDuplicates: false }
         ),
-        supabase.from("algorithm_results").delete().eq("user_id", userId).in("algorithm_type", ["xsimgcl", "gnn-cf"])
+          supabase.from("algorithm_results").delete().eq("user_id", userId).in("algorithm_type", ["xsimgcl", "gnn-cf"])
+            .catch(() => undefined)
       ]).catch(err => logger.error("[bookingsService] Failed to track RSVP interaction:", err));
 
       return successResponse(result as BookingRow);
@@ -249,6 +250,7 @@ export const bookingsService = {
             { onConflict: "user_id,event_id,interaction_type", ignoreDuplicates: false }
           ),
           supabase.from("algorithm_results").delete().eq("user_id", data.user_id).in("algorithm_type", ["xsimgcl", "gnn-cf"])
+            .catch(() => undefined)
         ]).catch(err => logger.error("[bookingsService] Failed to track confirmed interaction:", err));
       }
 

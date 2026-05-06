@@ -4,6 +4,24 @@
     "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4eHhheHh4eHh4eHh4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE2MzY2MzgwMDAsImV4cCI6MTk5OTk5OTk5OX0.Zr_7HBP1-u5CwCUX5-mDGkdX5XyXGDt5hI-hO0kzh9w",
     "SUPABASE_PROXY_URL": "https://exfoliate-speed-underdog.ngrok-free.dev"
   },
+  "rewrites": [
+    {
+      "source": "/auth/v1/:path*",
+      "destination": "https://exfoliate-speed-underdog.ngrok-free.dev/auth/v1/:path*"
+    },
+    {
+      "source": "/rest/v1/:path*",
+      "destination": "https://exfoliate-speed-underdog.ngrok-free.dev/rest/v1/:path*"
+    },
+    {
+      "source": "/storage/v1/:path*",
+      "destination": "https://exfoliate-speed-underdog.ngrok-free.dev/storage/v1/:path*"
+    },
+    {
+      "source": "/realtime/v1/:path*",
+      "destination": "https://exfoliate-speed-underdog.ngrok-free.dev/realtime/v1/:path*"
+    }
+  ],
   "crons": [
     {
       "path": "/api/algorithms/communities",
