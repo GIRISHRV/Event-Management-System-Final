@@ -19,7 +19,7 @@ function createSupabaseClient(token: string) {
   }
 
   return createClient(url, key, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: { headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" } },
   });
 }
 

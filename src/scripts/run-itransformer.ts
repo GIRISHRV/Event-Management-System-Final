@@ -10,7 +10,7 @@ import fs from "fs";
 async function run() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createClient(url, key);
+  const supabase = createClient(url, key, { global: { headers: { "ngrok-skip-browser-warning": "true" } } });
 
   // 1. Get top 5 events with longest booking histories
   const { data: bookings } = await supabase.from("bookings").select("event_id, created_at").eq("status", "confirmed").order("created_at");

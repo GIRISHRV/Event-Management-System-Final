@@ -22,4 +22,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    headers: {
+      "ngrok-skip-browser-warning": "true",
+    },
+  },
+});

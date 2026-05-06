@@ -46,10 +46,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const adminSupabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { headers: { "ngrok-skip-browser-warning": "true" } } });
 
     const start = Date.now();
 

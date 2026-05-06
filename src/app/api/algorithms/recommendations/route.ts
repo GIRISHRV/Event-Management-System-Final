@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     // Authenticated client — carries the user's JWT so RLS policies apply correctly
     const supabase = createClient(url, key, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      global: { headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" } },
     });
 
     const {

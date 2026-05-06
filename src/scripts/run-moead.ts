@@ -6,7 +6,7 @@ import fs from "fs";
 async function run() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const supabase = createClient(url, key);
+  const supabase = createClient(url, key, { global: { headers: { "ngrok-skip-browser-warning": "true" } } });
 
   const budget = 50000;
   

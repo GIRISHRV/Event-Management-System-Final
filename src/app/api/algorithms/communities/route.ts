@@ -36,10 +36,7 @@ export async function GET(request: NextRequest) {
       global: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
     });
 
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const adminSupabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { headers: { "ngrok-skip-browser-warning": "true" } } });
 
     // ── Parse query params ────────────────────────────────────────────────────
     const { searchParams } = new URL(request.url);
@@ -142,10 +139,7 @@ export async function POST(request: NextRequest) {
       global: token ? { headers: { Authorization: `Bearer ${token}` } } : {},
     });
 
-    const adminSupabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    const adminSupabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { global: { headers: { "ngrok-skip-browser-warning": "true" } } });
 
     // ── Check for optimistic lock ─────────────────────────────────────────────
     const { data: lockRow } = await adminSupabase

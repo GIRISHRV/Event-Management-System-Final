@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createClient(url, key, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      global: { headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" } },
     });
 
     const { data: { user }, error: authError } = await supabase.auth.getUser();

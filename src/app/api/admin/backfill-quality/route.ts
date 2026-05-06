@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = createClient(url, key, {
-      global: { headers: { Authorization: `Bearer ${token}` } },
+      global: { headers: { Authorization: `Bearer ${token}`, "ngrok-skip-browser-warning": "true" } },
     });
 
     // Auth check — admin only
@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
     // Create admin client for bypassing RLS during fetch/update
     const adminSupabase = createClient(
       url,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { global: { headers: { "ngrok-skip-browser-warning": "true" } } }
     );
 
     // 1. Fetch all vendor services
