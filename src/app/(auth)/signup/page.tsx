@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { BackgroundEffects } from "@/components/ui/BackgroundEffects";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { cn } from "@/lib/cn";
 
 // Map raw Supabase error messages to friendly user-facing copy
@@ -102,6 +103,7 @@ export default function SignUpPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center p-6 relative overflow-hidden">
+      <LoadingScreen isLoading={isLoading} message="Creating your account..." />
       <BackgroundEffects variant="gradient" className="opacity-40" />
 
       {/* Back Link */}

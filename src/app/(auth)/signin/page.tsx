@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/useToast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { BackgroundEffects } from "@/components/ui/BackgroundEffects";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 
 export default function SignInPage() {
   const router = useRouter();
@@ -50,6 +51,7 @@ export default function SignInPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-background)] flex items-center justify-center p-6 relative overflow-hidden">
+      <LoadingScreen isLoading={isLoading} message="Signing in to your account..." />
       <BackgroundEffects variant="gradient" className="opacity-40" />
 
       {/* Back Link */}

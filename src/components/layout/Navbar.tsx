@@ -8,6 +8,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Menu, X, Search, Store, LayoutDashboard, Calendar, User, LogOut, Shield } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
+import { LoadingScreen } from "@/components/ui/LoadingScreen";
 import { useAuth } from "@/context/AuthContext";
 
 export function Navbar() {
@@ -15,6 +16,7 @@ export function Navbar() {
   const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const { session, userProfile, signOut } = useAuth();
 
@@ -40,7 +42,9 @@ export function Navbar() {
   }, []);
 
   return (
-    <header
+    <>
+      <LoadingScreen isLoading={isSigningOut} message="Signing out..." />
+      <header
       className={cn(
         "fixed top-0 inset-x-0 z-50 transition-all duration-300",
         isScrolled
@@ -99,7 +103,9 @@ export function Navbar() {
                 variant="ghost"
                 size="sm"
                 onClick={async () => {
+                  setIsSigningOut(true);
                   await signOut();
+                  router.refresh();
                   router.replace("/");
                 }}
                 className="rounded-full w-9 h-9 p-0 text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
@@ -183,7 +189,9 @@ export function Navbar() {
                       variant="ghost"
                       onClick={async () => {
                         setIsMobileMenuOpen(false);
+                        setIsSigningOut(true);
                         await signOut();
+                        router.refresh();
                         router.replace("/");
                       }}
                       className="w-full justify-start gap-2 text-red-400 hover:text-red-500 hover:bg-red-400/10"
@@ -208,5 +216,6 @@ export function Navbar() {
         </Dialog.Root>
       </div>
     </header>
+    </>
   );
 }

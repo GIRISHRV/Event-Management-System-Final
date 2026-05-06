@@ -25,10 +25,9 @@ export function LoadingScreen({
     return (
       <div
         className={cn(
-          "fixed inset-0 flex flex-col items-center justify-center bg-[var(--color-background)]",
+          "fixed inset-0 flex flex-col items-center justify-center bg-[var(--color-background)]/80 backdrop-blur-sm z-[9999]",
           className
         )}
-        style={{ zIndex: "var(--z-fixed)" }}
       >
         <Loader2 className="w-8 h-8 text-[var(--color-brand)] animate-spin" />
         {message && (
