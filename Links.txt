@@ -1,0 +1,15 @@
+Project Links
+
+Website: https://my-app-swart-kappa-40.vercel.app
+
+Demo Video (file): Demo_Video.mp4
+
+Demo Video (YouTube): https://www.youtube.com/watch?v=5r1V5bJS0WI
+
+Presentation (PPTX): An-Effective-Smart-Event-Planner-and-Cost-Management-System.pptx
+
+Project Report (PCL 6): pcl 6 report.pdf
+
+Research Paper: EVENTMS_AN_EFFECTIVE_SMART_EVENT_PLANNER_AND_COST_MANAGEMENT_SYSTEM.pdf
+
+DOI: https://doi.org/10.5281/zenodo.20046610

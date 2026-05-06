@@ -218,11 +218,26 @@ export async function DELETE(request: NextRequest) {
       .eq("user_id", user.id)
       .eq("event_id", eventId);
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      logger.error("[chat-history DELETE] Clear failed:", {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        payload: { user_id: user.id, event_id: eventId }
+      });
+      throw new Error(error.message);
+    }
 
-    return NextResponse.json({ success: true, message: "Chat mathematical history decimated" });
+    logger.info(`[chat-history DELETE] Chat history cleared for user: ${user.id}, event: ${eventId}`);
+    return NextResponse.json({ success: true, message: "Chat history cleared" });
   } catch (error: unknown) {
-    logger.error("[chat-history DELETE] Extirpate error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error("[chat-history DELETE] Unexpected error:", errorMsg);
+    return NextResponse.json({ 
+      error: "Failed to clear chat history", 
+      details: errorMsg,
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }
