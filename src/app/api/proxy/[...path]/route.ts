@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// The local Supabase instance (via ngrok tunnel)
-const SUPABASE_URL = 'https://exfoliate-speed-underdog.ngrok-free.dev';
+// Prefer an explicit proxy target, then fall back to the public Supabase URL.
+const SUPABASE_URL = process.env.SUPABASE_PROXY_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
@@ -40,6 +40,14 @@ async function proxyRequest(req: NextRequest, paramsPromise: Promise<{ path: str
     const { path: pathSegments } = await paramsPromise;
     const path = pathSegments.join('/');
     const search = req.nextUrl.search;
+
+    if (!SUPABASE_URL) {
+      return NextResponse.json({
+        error: 'Proxy configuration error',
+        details: 'Set SUPABASE_PROXY_URL or NEXT_PUBLIC_SUPABASE_URL for the deployed environment.'
+      }, { status: 500 });
+    }
+
     const url = `${SUPABASE_URL}/${path}${search}`;
 
     const headers = new Headers();

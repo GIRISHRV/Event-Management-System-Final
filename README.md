@@ -101,11 +101,14 @@ Copy `.env.example` to `.env.local` and set the following:
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL (safe to expose client-side) |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anonymous key — RLS policies enforce access control |
+| `SUPABASE_PROXY_URL` | No | Optional proxy target for `/api/proxy`; set this in deployment if you want the app to forward REST calls to a specific Supabase URL |
 | `HF_TOKEN` | Yes | HuggingFace API token for the AI chatbot LLM (server-side only) |
 | `HF_MODEL` | Yes | HuggingFace model ID, e.g. `meta-llama/Llama-3.3-70B-Instruct` (server-side only) |
 | `NEXT_PUBLIC_SITE_URL` | No | Base URL of the deployment, e.g. `http://localhost:3000` |
 
 > `HF_TOKEN` and `HF_MODEL` must never use the `NEXT_PUBLIC_` prefix — they are server-side only and must not be exposed to the browser.
+
+> For Vercel deployments, make sure `NEXT_PUBLIC_SUPABASE_URL` points at your real Supabase project URL, not `127.0.0.1` or a local ngrok tunnel.
 
 ---
 
