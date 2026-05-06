@@ -32,6 +32,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/cn";
 import { SimilarEvents } from "@/components/events/SimilarEvents";
 import { ForecastPanel } from "@/components/events/ForecastPanel";
+import { EventMap } from "@/components/events/EventMap";
 
 export default function EventDetailsPage({
   params
@@ -197,6 +198,15 @@ export default function EventDetailsPage({
                 </div>
               </section>
             )}
+
+            {/* VENUE MAP */}
+            <section className="space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="h-6 w-1 bg-[var(--color-brand)] rounded-full" />
+                <h2 className="text-xl font-bold uppercase tracking-widest">Venue</h2>
+              </div>
+              <EventMap event={event} />
+            </section>
           </div>
 
           {/* RIGHT: SIDEBAR */}

@@ -31,15 +31,17 @@ export function EventChatbot({ eventId, eventName = "Event" }: EventChatbotProps
     async function fetchDynamicSuggestions() {
       if (!eventId) return;
       try {
+        // Note: performers, schedules, and faqs are JSONB columns, not foreign key relationships
         const { data } = await supabase
           .from("events")
-          .select("*, event_performers(id), event_schedules(id), event_faqs(question)")
+          .select("*")
           .eq("id", eventId)
           .single();
         if (data) {
           setSuggestions(generateContextualSuggestions(data));
         }
-      } catch {
+      } catch (error) {
+        console.debug("Failed to fetch event suggestions:", error);
         // Fall back to public suggestions quietly
       }
     }

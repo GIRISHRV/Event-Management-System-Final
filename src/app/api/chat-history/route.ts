@@ -90,7 +90,13 @@ export async function POST(request: NextRequest) {
     const parsed = SaveMessageSchema.safeParse(body);
     
     if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid schema payload bounded", details: parsed.error.flatten() }, { status: 400 });
+      const validationErrors = parsed.error.flatten();
+      logger.warn("[chat-history POST] Schema validation failed:", JSON.stringify(validationErrors));
+      return NextResponse.json({ 
+        error: "Invalid request payload", 
+        details: validationErrors,
+        received: body
+      }, { status: 400 });
     }
 
     const { eventId, message } = parsed.data;
@@ -107,12 +113,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, message: "Node saved locally (Auth Failure)" });
     }
 
-    const { data: existingData } = await supabase
+    const { data: existingData, error: queryError } = await supabase
       .from("chat_history")
       .select("id, messages")
       .eq("user_id", user.id)
       .eq("event_id", eventId)
       .single();
+
+    // PGRST116 = no rows found, which is expected for new conversations
+    if (queryError && queryError.code !== "PGRST116") {
+      throw new Error(`Failed to query chat history: ${queryError.message}`);
+    }
 
     let messages = existingData?.messages ?? [];
     
@@ -131,13 +142,18 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString();
 
     if (existingData?.id) {
+      logger.info(`[chat-history POST] Updating existing record: ${existingData.id}`);
       const { error: updateError } = await supabase
         .from("chat_history")
         .update({ messages, updated_at: now })
         .eq("id", existingData.id);
 
-      if (updateError) throw new Error(updateError.message);
+      if (updateError) {
+        logger.error("[chat-history POST] Update failed:", updateError.message);
+        throw new Error(`Update failed: ${updateError.message}`);
+      }
     } else {
+      logger.info(`[chat-history POST] Creating new record for user: ${user.id}, event: ${eventId}`);
       const { error: insertError } = await supabase.from("chat_history").insert({
         user_id: user.id,
         event_id: eventId,
@@ -146,13 +162,23 @@ export async function POST(request: NextRequest) {
         updated_at: now,
       });
 
-      if (insertError) throw new Error(insertError.message);
+      if (insertError) {
+        logger.error("[chat-history POST] Insert failed:", insertError.message);
+        throw new Error(`Insert failed: ${insertError.message}`);
+      }
     }
 
     return NextResponse.json({ success: true, message: "Messages saved to database", totalMessages: messages.length });
   } catch (error: unknown) {
-    logger.error("[chat-history POST] Unexpected error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logger.error("[chat-history POST] Unexpected error:", errorMsg);
+    
+    // Return more informative error for debugging
+    return NextResponse.json({ 
+      error: "Failed to save message to database", 
+      details: errorMsg,
+      timestamp: new Date().toISOString()
+    }, { status: 500 });
   }
 }
 

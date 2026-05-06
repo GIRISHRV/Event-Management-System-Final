@@ -15,7 +15,20 @@ import type L from "leaflet";
 const EventMapInner = memo(function EventMap({ event, nearbyEvents = [] }: EventMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
-  const hasCoordinates = !!(event.venue_latitude && event.venue_longitude);
+  
+  // Check if main event has coordinates, otherwise find first nearby event with coordinates
+  const primaryEvent = event.venue_latitude && event.venue_longitude 
+    ? event 
+    : nearbyEvents.find(e => e.venue_latitude && e.venue_longitude);
+  
+  const hasCoordinates = !!(primaryEvent?.venue_latitude && primaryEvent?.venue_longitude);
+  
+  // For dashboard view, aggregate all events with coordinates
+  const allEventsWithCoordinates = [
+    ...(event.venue_latitude && event.venue_longitude ? [event] : []),
+    ...nearbyEvents.filter(e => e.venue_latitude && e.venue_longitude)
+  ];
+  const uniqueEvents = Array.from(new Map(allEventsWithCoordinates.map(e => [e.id, e])).values());
 
   useEffect(() => {
     function handleResize() {
@@ -48,7 +61,7 @@ const EventMapInner = memo(function EventMap({ event, nearbyEvents = [] }: Event
         });
 
         if (!mapRef.current) {
-          const map = L.map(containerRef.current!).setView([event.venue_latitude!, event.venue_longitude!], 14);
+          const map = L.map(containerRef.current!).setView([primaryEvent!.venue_latitude!, primaryEvent!.venue_longitude!], 14);
           L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             maxZoom: 19,
           }).addTo(map);
@@ -58,8 +71,6 @@ const EventMapInner = memo(function EventMap({ event, nearbyEvents = [] }: Event
         const map = mapRef.current;
 
         // Force Leaflet to recalculate container size.
-        // Use mapRef.current (not the local `map` var) so the callback
-        // reads the live ref at execution time, not a stale closure capture.
         setTimeout(() => {
           if (mounted && mapRef.current) {
             mapRef.current.invalidateSize({ animate: false });
@@ -80,36 +91,27 @@ const EventMapInner = memo(function EventMap({ event, nearbyEvents = [] }: Event
           shadowSize: [41, 41],
         });
 
-        const mainMarker = L.marker([event.venue_latitude!, event.venue_longitude!], { icon: blueIcon })
-          .bindPopup(`
-            <div style="padding:8px;min-width:160px">
-              <h3 style="font-weight:700;font-size:13px;margin-bottom:4px">${event.event_name}</h3>
-              <p style="font-size:11px;color:#71717a">${event.venue_name || event.venue_city || "Venue"}</p>
-            </div>
-          `);
+        const group = new L.FeatureGroup([]);
 
-        mainMarker.addTo(map);
-
-        const group = new L.FeatureGroup([mainMarker]);
-
-        nearbyEvents.forEach((nearbyEvent) => {
-          if (nearbyEvent.venue_latitude && nearbyEvent.venue_longitude) {
-            const marker = L.marker([nearbyEvent.venue_latitude, nearbyEvent.venue_longitude], { icon: blueIcon })
-              .bindPopup(`
-                <div style="padding:8px;min-width:160px">
-                  <h3 style="font-weight:700;font-size:13px;margin-bottom:4px">${nearbyEvent.event_name}</h3>
-                  <a href="/event/${nearbyEvent.id}" style="font-size:11px;color:#3b82f6">View Event →</a>
-                </div>
-              `);
-            marker.addTo(map);
-            group.addLayer(marker);
-          }
+        // Add all events with coordinates
+        uniqueEvents.forEach((evt) => {
+          const marker = L.marker([evt.venue_latitude!, evt.venue_longitude!], { icon: blueIcon })
+            .bindPopup(`
+              <div style="padding:8px;min-width:160px">
+                <h3 style="font-weight:700;font-size:13px;margin-bottom:4px">${evt.event_name}</h3>
+                <p style="font-size:11px;color:#71717a">${evt.venue_name || evt.venue_city || "Venue"}</p>
+                ${evt.id !== event.id ? `<a href="/event/${evt.id}" style="font-size:11px;color:#3b82f6">View Event →</a>` : ""}
+              </div>
+            `);
+          marker.addTo(map);
+          group.addLayer(marker);
         });
 
-        if (nearbyEvents.length > 0) {
+        // Fit bounds to show all markers, or center on primary event
+        if (uniqueEvents.length > 1) {
           map.fitBounds(group.getBounds(), { padding: [50, 50] });
-        } else {
-          map.setView([event.venue_latitude!, event.venue_longitude!], 14);
+        } else if (primaryEvent) {
+          map.setView([primaryEvent.venue_latitude!, primaryEvent.venue_longitude!], 14);
         }
 
       } catch (error) {
@@ -127,7 +129,7 @@ const EventMapInner = memo(function EventMap({ event, nearbyEvents = [] }: Event
         mapRef.current = null;
       }
     };
-  }, [event.venue_latitude, event.venue_longitude, event.event_name, event.venue_name, event.venue_city, nearbyEvents, hasCoordinates]);
+  }, [event.venue_latitude, event.venue_longitude, event.event_name, event.venue_name, event.venue_city, event.id, nearbyEvents, hasCoordinates, primaryEvent, uniqueEvents]);
 
   if (!hasCoordinates) {
     return (

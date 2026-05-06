@@ -56,6 +56,14 @@ async function proxyRequest(req: NextRequest, paramsPromise: Promise<{ path: str
     headers.set('ngrok-skip-browser-warning', 'true');
     
     // Ensure the anon key is set correctly for Supabase
+    if (!SUPABASE_ANON_KEY) {
+      console.error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set');
+      return NextResponse.json({ 
+        error: 'Proxy configuration error',
+        details: 'NEXT_PUBLIC_SUPABASE_ANON_KEY is missing'
+      }, { status: 500 });
+    }
+    
     headers.set('apikey', SUPABASE_ANON_KEY);
     if (!headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
@@ -73,7 +81,7 @@ async function proxyRequest(req: NextRequest, paramsPromise: Promise<{ path: str
       }
     }
 
-    console.log(`Proxying ${req.method} ${url}`);
+    console.log(`[Proxy] ${req.method} ${path}${search || ''}`);
 
     const res = await fetch(url, {
       method: req.method,
@@ -83,12 +91,13 @@ async function proxyRequest(req: NextRequest, paramsPromise: Promise<{ path: str
       cache: 'no-store',
       // @ts-ignore - node-fetch / undici option for body
       duplex: 'half',
+      timeout: 30000, // 30 second timeout
     });
 
     const data = await res.text();
     
     if (!res.ok) {
-      console.error(`Supabase returned error ${res.status}:`, data);
+      console.error(`[Proxy] ${req.method} ${path} returned ${res.status}:`, data.substring(0, 500));
     }
 
     // Create response with original status and proxied data
@@ -100,10 +109,22 @@ async function proxyRequest(req: NextRequest, paramsPromise: Promise<{ path: str
       },
     });
   } catch (error) {
-    console.error('Proxy error:', error);
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[Proxy] Error:', errorMsg);
+    
+    // Check if ngrok tunnel is down
+    if (errorMsg.includes('ECONNREFUSED') || errorMsg.includes('getaddrinfo')) {
+      return NextResponse.json({ 
+        error: 'Supabase proxy unavailable',
+        details: 'ngrok tunnel may be down. Ensure ngrok is running: npx ngrok http 54321',
+        endpoint: SUPABASE_URL
+      }, { status: 503 });
+    }
+    
     return NextResponse.json({ 
-      error: 'Proxy failed', 
-      details: error instanceof Error ? error.message : String(error) 
+      error: 'Proxy request failed', 
+      details: errorMsg,
+      timestamp: new Date().toISOString()
     }, { status: 500 });
   }
 }
