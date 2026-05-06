@@ -223,7 +223,7 @@ export async function POST(request: NextRequest) {
       const recIds = finalRecs.map(r => r.eventId);
       const { data: ccrData } = await supabase
         .from("events")
-        .select("id, current_attendees, max_attendees, start_date")
+        .select("id, attendee_count, max_attendees, start_date")
         .in("id", recIds);
         
       if (ccrData) {

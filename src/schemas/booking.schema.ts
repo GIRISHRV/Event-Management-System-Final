@@ -11,11 +11,7 @@ export const bookingRowSchema = z.object({
   event_id: z.string().uuid(),
   user_id: z.string().uuid(),
   status: bookingStatusEnum,
-  ticket_tier: z.string().nullable().optional(),
-  amount_paid: z.number().nullable().optional(),
-  booking_metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   created_at: z.string().datetime({ offset: true }),
-  updated_at: z.string().datetime({ offset: true }),
 });
 
 export type BookingRow = z.infer<typeof bookingRowSchema>;

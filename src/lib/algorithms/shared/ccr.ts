@@ -2,7 +2,7 @@ import type { RecommendedEvent } from "./types";
 
 export function applyCCR(
   recommendations: RecommendedEvent[],
-  eventDataMap: Map<string, { current_attendees: number; max_attendees: number | null; start_date: string }>
+  eventDataMap: Map<string, { attendee_count: number; max_attendees: number | null; start_date: string }>
 ): (RecommendedEvent & { pre_ccr_score: number })[] {
   const now = new Date();
 
@@ -11,12 +11,12 @@ export function applyCCR(
       const data = eventDataMap.get(rec.eventId);
       if (!data) return { ...rec, pre_ccr_score: rec.score };
 
-      const { current_attendees, max_attendees, start_date } = data;
+      const { attendee_count, max_attendees, start_date } = data;
 
       // 1. Capacity factor
       let capacityFactor = 1.0;
       if (max_attendees !== null && max_attendees > 0) {
-        const ratio = current_attendees / max_attendees;
+        const ratio = attendee_count / max_attendees;
         capacityFactor = Math.max(0, 1 - Math.pow(ratio, 2));
       }
 

@@ -112,7 +112,7 @@ export const bookingsService = {
         // Update existing row
         const { data, error: updateErr } = await supabase
           .from("bookings")
-          .update({ status: targetStatus, updated_at: new Date().toISOString() })
+          .update({ status: targetStatus })
           .eq("id", existingBooking.id)
           .select()
           .single();
@@ -163,7 +163,7 @@ export const bookingsService = {
     try {
       const { data, error } = await supabase
         .from("bookings")
-        .update({ status: STATUS_CANCELLED, updated_at: new Date().toISOString() })
+        .update({ status: STATUS_CANCELLED })
         .eq("id", bookingId)
         .eq("user_id", userId) // Enforce ownership security
         .select()
@@ -229,7 +229,7 @@ export const bookingsService = {
     try {
       const { data, error } = await supabase
         .from("bookings")
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ status })
         .eq("id", bookingId)
         .select()
         .single();

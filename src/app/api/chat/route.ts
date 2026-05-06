@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { callHuggingFace, isHuggingFaceAvailable } from "@/lib/huggingface";
 import { DEFAULT_HF_MODEL } from "@/lib/constants";
 import { logger } from "@/lib/logger";
-import { handleApiError, validationError, serviceUnavailable } from "@/lib/error-handler";
+import { handleApiError, validationError } from "@/lib/error-handler";
 import { chatApiRequestSchema, type ChatApiResponse } from "@/schemas/chat.schema";
 import { createSupabaseServerClient } from "@/services/supabase/server";
+
+function fallbackAssistantMessage(question: string) {
+  return `I’m having trouble reaching the AI service right now, but I can still help with event basics.\n\nYou asked: ${question}\n\nTry asking about the schedule, venue, performers, or booking details.`;
+}
 
 export async function POST(req: NextRequest): Promise<NextResponse<ChatApiResponse | { error: string; details?: unknown }>> {
   try {
@@ -49,7 +53,17 @@ FAQs: ${JSON.stringify(data.faqs || [])}`;
 
     const hfAvailable = await isHuggingFaceAvailable();
     if (!hfAvailable) {
-      return serviceUnavailable("AI assistant is currently unavailable. Please try again later.");
+      return NextResponse.json({
+        success: true,
+        response: {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: fallbackAssistantMessage(question),
+          source: "local",
+          responseTime: 0,
+          timestamp: new Date().toISOString(),
+        },
+      } as ChatApiResponse);
     }
 
     const systemPrompt = `You are a helpful AI assistant for EventMS, an event management platform.
@@ -89,6 +103,17 @@ Instructions:
       },
     } as ChatApiResponse);
   } catch (error: unknown) {
-    return handleApiError(error, "chat API");
+    logger.warn("[Chat API] Falling back after error:", error instanceof Error ? error.message : String(error));
+    return NextResponse.json({
+      success: true,
+      response: {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: fallbackAssistantMessage("your question"),
+        source: "local",
+        responseTime: 0,
+        timestamp: new Date().toISOString(),
+      },
+    } as ChatApiResponse);
   }
 }

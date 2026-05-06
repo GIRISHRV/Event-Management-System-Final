@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Menu, X, Search, Store, LayoutDashboard, Calendar, User, LogOut, Shield } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -11,6 +12,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -96,7 +98,10 @@ export function Navbar() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => signOut()}
+                onClick={async () => {
+                  await signOut();
+                  router.replace("/");
+                }}
                 className="rounded-full w-9 h-9 p-0 text-[var(--color-text-tertiary)] hover:text-red-400 hover:bg-red-400/10 transition-colors"
                 aria-label="Sign out"
               >
@@ -176,7 +181,11 @@ export function Navbar() {
                     </Link>
                     <Button
                       variant="ghost"
-                      onClick={() => { signOut(); setIsMobileMenuOpen(false); }}
+                      onClick={async () => {
+                        setIsMobileMenuOpen(false);
+                        await signOut();
+                        router.replace("/");
+                      }}
                       className="w-full justify-start gap-2 text-red-400 hover:text-red-500 hover:bg-red-400/10"
                     >
                       <LogOut size={16} />

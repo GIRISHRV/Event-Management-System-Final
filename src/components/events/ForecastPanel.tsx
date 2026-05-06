@@ -62,9 +62,9 @@ export function ForecastPanel({ eventId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const { data: evData } = await supabase.from('events').select('current_attendees, max_attendees').eq('id', eventId).single();
+      const { data: evData } = await supabase.from('events').select('attendee_count, max_attendees').eq('id', eventId).single();
       if (evData) {
-        setEventData({ current: evData.current_attendees || 0, max: evData.max_attendees });
+        setEventData({ current: evData.attendee_count || 0, max: evData.max_attendees });
       }
 
       const res = await fetch("/api/algorithms/forecast", {

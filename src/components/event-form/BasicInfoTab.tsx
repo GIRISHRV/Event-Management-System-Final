@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Upload, Globe, Activity, Users, IndianRupee, Loader2 } from "lucide-react";
 import { type UseFormReturn } from "react-hook-form";
 import { type EventFormData } from "@/schemas/event.schema";
-import { VISIBILITY_TYPES, EVENT_STATUS } from "@/lib/constants";
+import { VISIBILITY_TYPES, EVENT_STATUS, STORAGE_BUCKETS } from "@/lib/constants";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { storageService } from "@/services/supabase/storage";
@@ -29,7 +29,7 @@ export function BasicInfoTab({ form, eventId }: BasicInfoTabProps) {
 
     try {
       setIsUploading(true);
-      const url = await storageService.uploadFile('events', file, {
+      const url = await storageService.uploadFile(STORAGE_BUCKETS.EVENT_MEDIA, file, {
         folder: eventId || 'new-event/banners'
       });
       setValue('eventBannerUrl', url, { shouldValidate: true, shouldDirty: true });

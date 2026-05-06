@@ -12,6 +12,7 @@
 // ─── Supabase Storage ────────────────────────────────────────────────────────
 
 export const STORAGE_BUCKETS = {
+  EVENT_MEDIA: "events",
   EVENT_BANNERS: "event-banners",
   AVATARS: "avatars",
 } as const;

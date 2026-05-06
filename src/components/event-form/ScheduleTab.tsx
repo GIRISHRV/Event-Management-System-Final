@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { Plus, Trash2, Upload, User, Calendar, Clock, MapPin, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useFieldArray, useWatch, type UseFormReturn } from 'react-hook-form';
 import { type EventFormData } from '@/schemas/event.schema';
+import { STORAGE_BUCKETS } from '@/lib/constants';
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { storageService } from "@/services/supabase/storage";
@@ -39,7 +40,7 @@ const PerformerItem = ({
 
     try {
       setIsUploading(true);
-      const url = await storageService.uploadFile('events', file, {
+      const url = await storageService.uploadFile(STORAGE_BUCKETS.EVENT_MEDIA, file, {
         folder: eventId || 'new-event/performers'
       });
       setValue(`performers.${index}.image_url`, url, { shouldValidate: true, shouldDirty: true });

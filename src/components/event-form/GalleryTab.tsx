@@ -2,6 +2,7 @@ import React, { useState, memo, useCallback, useMemo, useRef } from 'react';
 import { Trash2, Upload, ImageOff, Image as ImageIcon, Video } from 'lucide-react';
 import { type UseFormReturn } from 'react-hook-form';
 import { type EventFormData } from '@/schemas/event.schema';
+import { STORAGE_BUCKETS } from '@/lib/constants';
 import Image from 'next/image';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -131,7 +132,7 @@ export function GalleryTab({ form, eventId }: GalleryTabProps) {
     if (!file) return;
     try {
       setUploadingType('image');
-      const url = await storageService.uploadFile('events', file, { folder: eventId || 'new-event/gallery' });
+      const url = await storageService.uploadFile(STORAGE_BUCKETS.EVENT_MEDIA, file, { folder: eventId || 'new-event/gallery' });
       const currentImages = getValues('galleryImages') || [];
       setValue('galleryImages', [...currentImages, url], { shouldValidate: true, shouldDirty: true });
       toastSuccess("Gallery image uploaded");
@@ -148,7 +149,7 @@ export function GalleryTab({ form, eventId }: GalleryTabProps) {
     if (!file) return;
     try {
       setUploadingType('video');
-      const url = await storageService.uploadFile('events', file, { folder: eventId || 'new-event/videos' });
+      const url = await storageService.uploadFile(STORAGE_BUCKETS.EVENT_MEDIA, file, { folder: eventId || 'new-event/videos' });
       const currentVideos = getValues('galleryVideos') || [];
       setValue('galleryVideos', [...currentVideos, url], { shouldValidate: true, shouldDirty: true });
       toastSuccess("Video uploaded");

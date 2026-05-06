@@ -69,7 +69,7 @@ export function useBookings(eventId?: string) {
     try {
       // Optimistic update
       mutateUserBooking(
-        { id: "temp", event_id: eventId, user_id: userId, status: "waitlist" as BookingStatus, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, 
+        { id: "temp", event_id: eventId, user_id: userId, status: "waitlist" as BookingStatus, created_at: new Date().toISOString() }, 
         false
       );
 
@@ -91,7 +91,7 @@ export function useBookings(eventId?: string) {
     try {
       // Optimistic cancellation update
       mutateUserBooking(
-        { id: bookingId, event_id: eventId, user_id: userId, status: "cancelled" as BookingStatus, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }, 
+        { id: bookingId, event_id: eventId, user_id: userId, status: "cancelled" as BookingStatus, created_at: new Date().toISOString() }, 
         false
       );
 

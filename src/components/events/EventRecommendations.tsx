@@ -110,7 +110,7 @@ export const EventRecommendations = memo(function EventRecommendations({
           .eq("visibility_type", "public")
           .eq("event_status", "upcoming")
           .gte("start_date", new Date().toISOString())
-          .order("current_attendees", { ascending: false })
+          .order("attendee_count", { ascending: false })
           .limit(limit);
           
         setRecommendations((trending as EnrichedEvent[]) || []);
@@ -234,6 +234,7 @@ export const EventRecommendations = memo(function EventRecommendations({
                     alt={event.event_name}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-500"
+                    unoptimized
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[var(--color-brand)]/10 to-purple-500/10">

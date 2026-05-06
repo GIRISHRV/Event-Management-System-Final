@@ -137,7 +137,7 @@ export default function EventDetailsPage({
             {/* HERO */}
             <section className="relative aspect-video rounded-3xl overflow-hidden border border-[var(--color-border)] shadow-2xl bg-[var(--color-surface-hover)]">
               {event.event_banner_url ? (
-                <Image src={event.event_banner_url} alt={event.event_name} fill className="object-cover" priority loading="eager" />
+                <Image src={event.event_banner_url} alt={event.event_name} fill className="object-cover" priority loading="eager" unoptimized />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-600/10 to-indigo-600/10">
                   <Camera size={48} className="text-[var(--color-brand)] opacity-20" />
@@ -170,7 +170,7 @@ export default function EventDetailsPage({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-white">
                   {event.gallery_images?.map((url, i) => (
                     <div key={i} className="relative aspect-square rounded-2xl overflow-hidden border border-[var(--color-border)] bg-[var(--color-surface)]">
-                      <Image src={url} alt="Gallery" fill className="object-cover hover:scale-110 transition-transform duration-500" />
+                      <Image src={url} alt="Gallery" fill className="object-cover hover:scale-110 transition-transform duration-500" unoptimized />
                     </div>
                   ))}
                 </div>
