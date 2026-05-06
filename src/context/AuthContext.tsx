@@ -10,7 +10,7 @@ interface AuthContextType {
   session: Session | null;
   userProfile: UserProfile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ session: Session; profile: any }>;
   signOut: () => Promise<void>;
 }
 
@@ -109,15 +109,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     
-    // Wait for session to be set in context (max 5 seconds)
-    const startTime = Date.now();
-    while (!session && Date.now() - startTime < 5000) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    if (!session) {
+    if (!data.session) {
       throw new Error("Session not established. Please try again.");
     }
+    
+    // Fetch profile to return role for immediate redirect
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", data.session.user.id)
+      .maybeSingle();
+
+    return { session: data.session, profile };
   };
 
   return (

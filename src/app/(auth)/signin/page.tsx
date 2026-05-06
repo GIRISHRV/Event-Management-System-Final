@@ -24,13 +24,16 @@ export default function SignInPage() {
     setIsLoading(true);
 
     try {
-      await signIn(email, password);
+      const { profile } = await signIn(email, password);
       toastSuccess("Welcome back to Event MS!");
       
+      router.refresh(); // Crucial: forces Next.js Server Components to read the new cookie
+      
       // Redirect to appropriate dashboard based on role
-      if (userProfile?.role === "admin") {
+      const role = profile?.role || "customer";
+      if (role === "admin") {
         router.push("/admin-dashboard");
-      } else if (userProfile?.role === "vendor") {
+      } else if (role === "vendor") {
         router.push("/vendor-dashboard");
       } else {
         router.push("/customer-dashboard");
