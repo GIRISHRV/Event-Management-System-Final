@@ -71,7 +71,7 @@ Instructions:
     ];
 
     const startTime = Date.now();
-  const answer = await callHuggingFace(hfMessages, systemPrompt, process.env.HF_MODEL || DEFAULT_HF_MODEL);
+    const answer = await callHuggingFace(hfMessages, systemPrompt);
     const latency = Date.now() - startTime;
 
     logger.info(`[Chat API] response in ${latency}ms`);

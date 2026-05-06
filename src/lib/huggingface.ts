@@ -26,9 +26,9 @@ interface HFChatCompletionResponse {
 export async function callHuggingFace(
   messages: HFMessage[],
   systemPrompt?: string,
-  model: string = process.env.HF_MODEL || DEFAULT_HF_MODEL
+  model: string = (process.env.HF_MODEL || DEFAULT_HF_MODEL).trim()
 ): Promise<string> {
-  const hfToken = process.env.HF_TOKEN;
+  const hfToken = process.env.HF_TOKEN?.trim();
   
   if (!hfToken) {
     throw new Error("HF_TOKEN environment variable is not set");
@@ -86,7 +86,7 @@ export async function callHuggingFace(
  * Returns false on any network error instead of throwing.
  */
 export async function isHuggingFaceAvailable(): Promise<boolean> {
-  const hfToken = process.env.HF_TOKEN;
+  const hfToken = process.env.HF_TOKEN?.trim();
   
   if (!hfToken) {
     logger.warn("[HuggingFace] HF_TOKEN not set");
